@@ -1,0 +1,53 @@
+/// Two-part Vector, not to be confused with the SIMD @Vector
+pub const Vector2 = struct
+{
+    x : f32 = 0.0,
+    y : f32 = 0.0,
+    /// Inline Initializer
+    pub inline fn init(x : f32, y : f32) Vector2
+    {
+        return .{.x = x, .y = y};
+    }
+    /// Inline SIMD converter
+    pub inline fn simd() @Vector(2, f32)
+    {
+        return @Vector(2, f32){.x, .y};
+    }
+};
+
+/// Three-part Vector, not to be confused with the SIMD @Vector
+pub const Vector3 = struct
+{
+    x : f32 = 0.0,
+    y : f32 = 0.0,
+    z : f32 = 0.0,
+    /// Inline Initializer
+    pub inline fn init(x : f32, y : f32, z : f32) Vector3
+    {
+        return .{.x = x, .y = y, .z = z};
+    }
+    /// Inline SIMD converter
+    pub inline fn simd() @Vector(3, f32)
+    {
+        return @Vector(3, f32){.x, .y, .z};
+    }
+};
+
+/// Four-part Vector, not to be confused with the SIMD @Vector
+pub const Vector4 = struct
+{
+    w : f32 = 0.0,
+    x : f32 = 0.0,
+    y : f32 = 0.0,
+    z : f32 = 0.0,
+    /// Inline Initializer
+    pub inline fn init(w : f32, x : f32, y : f32, z : f32) Vector4
+    {
+        return .{.w = w, .x = x, .y = y, .z = z};
+    }
+    /// Inline SIMD converter
+    pub inline fn simd() @Vector(4, f32)
+    {
+        return @Vector(4, f32){.w, .x, .y, .z};
+    }
+};

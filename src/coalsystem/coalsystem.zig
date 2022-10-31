@@ -1,7 +1,9 @@
 pub const sdl = @cImport({@cInclude("SDL2/SDL.h");});
 const std = @import("std");
 const wns = @import("windowsystem.zig");
-
+const rps = @import("reportsystem.zig");
+const rpt = @import("../coaltypes/report.zig");
+const chk = @import("../coaltypes/chunk.zig");
 
 // The current tic of the engine, 
 // used for logging and perhaps indescriminately timed occurances
@@ -13,6 +15,8 @@ var engine_tic : usize = 0;
 var engine_state : u32 = 0;
 
 
+/// Engine Flags are operational guidelines for any special engine operations
+/// TODO attempt to conceptualize necessary engine modes required
 pub const EngineFlag = enum(u16)
 {
     ef_quitflag = 0b0000_0000_0000_0001,
@@ -32,11 +36,21 @@ pub fn ignite() i32
 {
     var startup_state: i32 = 0;
     
-    startup_state = sdl.SDL_Init(sdl.SDL_INIT_EVERYTHING);
+    startup_state = sdl.SDL_Init(sdl.SDL_INIT_VIDEO);
     if (startup_state != 0)
     {
+        engine_state |= @enumToInt(EngineFlag.ef_quitflag);
         return startup_state;
     }
+    rps.logReport(rpt.Report
+    {
+        .report_type = @enumToInt(rpt.ReportType.lvl_info) | @enumToInt(rpt.ReportType.sdl__sys),
+        .report_mssg = 0,
+        .report_data = [_]i32{0}**4,
+        .report_etic = engine_tic,
+    });
+
+    chk.initializeChunkMap();
 
     startup_state = wns.createWindow();
     if (startup_state != 0)

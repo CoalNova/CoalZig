@@ -1,6 +1,6 @@
 const sys = @import("coalsystem.zig");
 
-/// 
+/// Run through all SDL events and handle inputs
 pub fn processEvents() void
 {
     var sdl_event : sys.sdl.SDL_Event = undefined;
