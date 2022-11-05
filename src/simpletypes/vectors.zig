@@ -31,6 +31,20 @@ pub const Vector3 = struct
     {
         return @Vector(3, f32){.x, .y, .z};
     }
+    /// An entirely wrong cross product calculation
+    pub inline fn badCross(lhd : Vector3, rhd : Vector3) Vector3
+	{
+		return Vector3{
+			.x = lhd.y * rhd.z - lhd.z * rhd.y,
+			.y = lhd.z * rhd.x - lhd.x * rhd.z,
+			.z = lhd.y * rhd.x - lhd.x * rhd.y
+		};
+	}
+    /// Dot product of two vectors
+    pub inline fn vectorDot(a : Vector3, b : Vector3) f32
+	{
+		return a.x * b.x + a.y * b.y + a.z * b.z;
+	}
 };
 
 /// Four-part Vector, not to be confused with the SIMD @Vector

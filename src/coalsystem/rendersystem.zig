@@ -5,6 +5,7 @@ const wns = @import("windowsystem.zig");
 const wnd = @import("../coaltypes/window.zig");
 const fcs = @import("../coaltypes/focus.zig");
 const chk = @import("../coaltypes/chunk.zig");
+const pst = @import("../coaltypes/position.zig");
 
 
 /// Software renders the provided window.
@@ -25,10 +26,35 @@ pub fn softRender(window : *wnd.Window, focal_point : *fcs.Focus) void
 fn renderSoftTerrain(window : *wnd.Window, focal_point : *fcs.Focus) void
 {
     const chunk : *chk.Chunk = chk.getChunk(focal_point.active_chunks[0]);
-    var screen_rect = sdl.SDL_Rect{.h = 16, .w = 16, .x = 16, .y = 16};
-
-    std.debug.assert( chunk.ground_sprite.surface.sdl_surface != null);
-    std.debug.assert( window.terr_surface != null);
+    const sprite = chunk.ground_sprite;
     
-    _ = sdl.SDL_BlitSurface(chunk.ground_sprite.surface.sdl_surface, &chunk.ground_sprite.rect, window.terr_surface, &screen_rect);
+    const wind__width = @divFloor(@intCast(i32, window.window__rect.w) , sprite.volume.x) + 1;
+    const wind_height = @divFloor(@intCast(i32, window.window__rect.h) , sprite.volume.y) + 1;
+
+    var screen_rect : sdl.SDL_Rect = undefined;
+    var sprite_rect = sdl.SDL_Rect{.w = sprite.volume.x, .h = sprite.volume.z, .x = sprite.offset.x, .y = sprite.offset.y};
+
+    var y : i32 = 0;
+    while (y <= wind_height) : (y += 1)
+    {
+        var x : i32 = 0;
+        while (x <= wind__width) : (x += 1)
+        {
+
+            var x_coord = @floatToInt(i32, focal_point.position.axial().x) + x - (wind__width >> 1) + y - (wind_height >> 1);
+            var y_coord = @floatToInt(i32, focal_point.position.axial().y) + x - (wind__width >> 1) - y - (wind_height >> 1);
+            _ = y_coord;
+            _ = x_coord;
+            screen_rect = sdl.SDL_Rect
+                {
+                    .h = 0, 
+                    .w = 0, 
+                    .x = -sprite.volume.x + x * sprite.volume.x + (y & 1) * (sprite.volume.x >> 1), 
+                    .y = -sprite.volume.y + y * sprite.volume.y
+                };
+            _ = sdl.SDL_BlitSurface(sprite.surface.sdl_surface, &sprite_rect, window.terr_surface, &screen_rect);
+        }
+    } 
+
+    
 }

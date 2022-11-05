@@ -20,13 +20,14 @@ var surfaces = [_]srf.Surface{.{}} ** max_surface_count;
 pub fn getSprite(sprite_id : u32) *spt.Sprite
 {
     //check if sprite is unloaded, or equals initialized value
-    if(sprites[sprite_id].sprite_id == 999999999)
+    if(sprites[sprite_id].id == 999999999)
     {
         sprites[sprite_id] = spt.Sprite
         {
             .surface = getSurface(sprite_id >> 8),
-            .sprite_id = sprite_id,
-            .rect = .{.w = 32, .h = 32, .x = 0, .y = 0},
+            .volume = .{.x = 32, .y = 8, .z = 128},
+            .offset = .{.x = 0, .y = 0},
+            .id = sprite_id,
             .subscribers = 0,
         };
         //TODO sprite rect x/y offset procurement
@@ -47,7 +48,7 @@ pub fn giveBackSprite(sprite : *spt.Sprite) void
     if (sprite.subscribers == 0)
     {
         giveBackSurface(sprite.surface);
-        sprites[sprite.sprite_id] = spt.Sprite{};
+        sprites[sprite.id] = spt.Sprite{};
     }
 }
 
