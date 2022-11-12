@@ -59,7 +59,7 @@ pub fn getSurface(surface_id : u32) *srf.Surface
     if (surfaces[surface_id].surface_id == 999999999)
     {
         // TODO use lut or loaded conf/xml for sprite reference metadata
-        var surf_point = sdl.SDL_LoadBMP("../assets/pixel/ground.bmp");
+        var surf_point = sdl.SDL_LoadBMP("./assets/ground.bmp");
         surfaces[surface_id] = srf.Surface
         {
             .sdl_surface = surf_point,

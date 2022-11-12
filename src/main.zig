@@ -5,6 +5,30 @@ const rns = @import("coalsystem/rendersystem.zig");
 const wns = @import("coalsystem/windowsystem.zig");
 const fcs = @import("coaltypes/focus.zig");
 const pst = @import("coaltypes/position.zig");
+const chk = @import("coaltypes/chunk.zig");
+const fio = @import("coalsystem/fileiosystem.zig");
+
+test "draw"
+{
+    std.debug.print("\n", .{});
+    var y : i32 = 0;
+    while (y <= 6) : (y += 1)
+    {
+        var x_span = y * 6 - y * y;
+        var x : i32 = 0;
+        while (x <= ((6 - x_span) >> 1) + 1) : (x += 1)
+        {
+            std.debug.print("  ", .{});
+        }
+        x = 0;
+        while (x <= x_span) : (x += 1)
+        {
+
+            std.debug.print(". ", .{});
+        }
+        std.debug.print("\n", .{});
+    }
+}
 
 pub fn main() !void 
 {
@@ -20,7 +44,13 @@ pub fn main() !void
     focus.position = pst.Position.init(.{.x = 1, .y = 1, .z = 0}, .{.x = 512.0, .y = 512.0, .z = 0});
     focus.range = 32; 
 
+
+
+
     fcs.updateFocalPoint(&focus);
+
+    // DEBUG
+    try chk.applyNewHeightMap(try fio.loadBMP());
 
     // Main loop, all logic calls will be accessed through this
     while (!sys.getEngineStateFromFlag(sys.EngineFlag.ef_quitflag)) 
