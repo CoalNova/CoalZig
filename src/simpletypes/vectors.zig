@@ -13,6 +13,11 @@ pub const Vector2 = struct
     {
         return @Vector(2, f32){.x, .y};
     }
+    /// Sum of two Vector2s
+    pub inline fn add(self : Vector2, vect : Vector2) Vector2 
+    {
+        return .{.x = self.x + vect.x, .y = self.y + vect.y};
+    }
 };
 
 /// Three-part Vector, not to be confused with the SIMD @Vector
@@ -30,6 +35,11 @@ pub const Vector3 = struct
     pub inline fn simd() @Vector(3, f32)
     {
         return @Vector(3, f32){.x, .y, .z};
+    }
+    /// Sum of two Vector3s
+    pub inline fn add(self : Vector3, vect : Vector3) Vector3 
+    {
+        return .{.x = self.x + vect.x, .y = self.y + vect.y, .z = self.z + vect.z};
     }
     /// An entirely wrong cross product calculation
     pub inline fn badCross(lhd : Vector3, rhd : Vector3) Vector3
@@ -63,5 +73,10 @@ pub const Vector4 = struct
     pub inline fn simd() @Vector(4, f32)
     {
         return @Vector(4, f32){.w, .x, .y, .z};
+    }
+    /// Sum of two Vector4s
+    pub inline fn add(self : Vector4, vect : Vector4) Vector4 
+    {
+        return .{.w = self.w, .x = self.x + vect.x, .y = self.y + vect.y, .z = self.z + vect.z};
     }
 };

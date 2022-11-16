@@ -17,7 +17,7 @@ const chk = @import("chunk.zig");
 
 pub const Focus = struct
 {
-    position : pst.Position = .{.raw = @Vector(3, u64){0, 0, 0}},
+    position : pst.Position = .{},
     active_chunks : [25]pnt.Point3 = [_]pnt.Point3{.{.x = -1, .y = -1, .z = -1}} ** 25,
     range : u32 = ((1 << 32) - 1)
 };
@@ -72,6 +72,7 @@ pub fn updateFocalPoint( focal_point : *Focus) void
                 var chunk : *chk.Chunk = chk.loadChunk(new_point) catch undefined;
                 focal_point.active_chunks[first_empty] = chunk.index;
             }
+
         }
     }
 }

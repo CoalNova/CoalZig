@@ -1,9 +1,11 @@
 const std = @import("std");
+const sys = @import("../coalsystem/coalsystem.zig");
 const spt = @import("sprite.zig");
 const asy = @import("../coalsystem/assetsystem.zig");
 const alc = @import("../coalsystem/allocationsystem.zig");
 const pst = @import("position.zig");
 const fio = @import("../coalsystem/fileiosystem.zig");
+const evs = @import("../coalsystem/eventsystem.zig");
 
 /// The container struct for dimensional-relevant data
 pub const Chunk = struct
@@ -104,37 +106,39 @@ pub fn getHeight(position : pst.Position) f32
     if (!chunkIndexIsValid(position.index()))
         return 0.0;
     //check if chunk has loaded height data
-    if (getChunk(position.index()).heights == null)
+    if (getChunk(position.index()).loaded == false)
         return 0.0;
-    const raw = position.raw;
+    var pos_x = position.x;
+    var pos_y = position.y;
     
     //check if requested height is rounded value
-    if ((raw.x & ((1 << 18) - 1)) == 0 and (raw.y & ((1 << 18) - 1)) == 0)
+    if ((pos_x & ((1 << 18) - 1)) == 0 and (pos_y & ((1 << 18) - 1)) == 0)
     {
         //check if position indices are odd and interpolate if so
-        if (((raw.x >> 18) & 1) == 1 and ((raw.y >> 18) & 1) == 1)
+        if (((pos_x >> 18) & 1) == 1 and ((pos_y >> 18) & 1) == 1)
             return (
-                getHeight(.{.raw = raw + @Vector(3, u64){1 << 18, 1 << 18, 0}}) +
-                getHeight(.{.raw = raw + @Vector(3, u64){1 << 18, 0, 0} - @Vector(3, u64){0, 1 << 18, 0}}) +
-                getHeight(.{.raw = raw - @Vector(3, u64){1 << 18, 1 << 18, 0}}) +
-                getHeight(.{.raw = raw - @Vector(3, u64){1 << 18, 0, 0} + @Vector(3, u64){0, 1 << 18, 0}}) 
+                getHeight(position.addVec(pst.vct.Vector3.init(1.0, 1.0, 0))) +
+                getHeight(position.addVec(pst.vct.Vector3.init(1.0, -1.0, 0))) +
+                getHeight(position.addVec(pst.vct.Vector3.init(-1.0, -1.0, 0))) +
+                getHeight(position.addVec(pst.vct.Vector3.init(-1.0, 1.0, 0))) 
                 ) / 4.0;
-        if ((raw.x >> 18) & 1)
+        if ((pos_x >> 18) & 1 == 1)
             return(
-                getHeight(.{.raw = raw + @Vector(3, u64){1 << 18, 0, 0}}) +
-                getHeight(.{.raw = raw - @Vector(3, u64){1 << 18, 0, 0}})
+                getHeight(position.addVec(pst.vct.Vector3.init(1.0, 0, 0))) +
+                getHeight(position.addVec(pst.vct.Vector3.init(-1.0, 0, 0)))
                 ) / 2.0;
-        if ((raw.y >> 18) & 1)
+        if ((pos_y >> 18) & 1 == 1)
             return(
-                getHeight(.{.raw = raw + @Vector(3, u64){0, 1 << 18, 0}}) +
-                getHeight(.{.raw = raw - @Vector(3, u64){0, 1 << 18, 0}})
+                getHeight(position.addVec(pst.vct.Vector3.init(0.0, 1.0, 0))) +
+                getHeight(position.addVec(pst.vct.Vector3.init(0.0, -1.0, 0)))
                 ) / 2.0;
         //otherwise resolve directly
         var chunk = getChunk(position.index());
         //height data is stored in chunks using a major and minor value
         //the major value is the heightmod, which blanketly sets the base height at some value in an unsigned char * 1024.0f
         //the minor value is an unsigned short * 0.02f, keeping per-height accuracy down to 2 centimeters (or two-hundredths of chosen unit of measure)
-        return chunk.heights[@floatToInt(i32, position.axial().x / 2.0) + @floatToInt(i32, (position.axial().y / 2.0) * 512)] * 0.02 + chunk.heightMod * 1024.0;
+        return @intToFloat(f32, chunk.heights[@intCast(usize,@floatToInt(i32, position.axial().x / 2.0) + @floatToInt(i32, (position.axial().y / 2.0) * 512))]) * 
+            0.02 + @intToFloat(f32, chunk.height_mod) * 1024.0;
     }
 
     //else all, utilize the nearest points 
@@ -143,31 +147,32 @@ pub fn getHeight(position : pst.Position) f32
     // - - -
     // a | b
 
-    raw = @Vector(3,u64){position.raw.x & (((1 << 18) - 1) << 14), position.raw.y & (((1 << 18) - 1) << 14), position.raw.z & (((1 << 18) - 1) << 14)};
+    pos_x = pos_x & (((1 << 10) - 1) << 18); 
+    pos_y = pos_y & (((1 << 10) - 1) << 18);
 
-    var a = getHeight(.{.raw = raw});
-    var b = getHeight(.{.raw = raw + @Vector(3,u64){1 << 18, 0, 0}});
-    var c = getHeight(.{.raw = raw + @Vector(3,u64){0, 1 << 18, 0}});
-    var d = getHeight(.{.raw = raw + @Vector(3,u64){1 << 18, 1 << 18, 0}});
+    var a = getHeight(.{.x = pos_x, .y = pos_y, .z = 0});
+    var b = getHeight(.{.x = pos_x + (1 << 18), .y = pos_y, .z = 0});
+    var c = getHeight(.{.x = pos_x, .y = pos_y + (1 << 18), .z = 0});
+    var d = getHeight(.{.x = pos_x + (1 << 18), .y = pos_y + (1 << 18), .z = 0});
 
     //calculate ray plane slope intersection formula 
     var origin = pst.vct.Vector3
     {
-        .x = @intToFloat(f32, (position.raw.x & ((1 << 18) - 1))) / @intToFloat(f32, 1 << 18), 
-        .y = @intToFloat(f32, (position.raw.x & ((1 << 18) - 1))) / @intToFloat(f32, 1 << 18), 
+        .x = @intToFloat(f32, (position.x & ((1 << 18) - 1))) / @intToFloat(f32, 1 << 18), 
+        .y = @intToFloat(f32, (position.y & ((1 << 18) - 1))) / @intToFloat(f32, 1 << 18), 
         .z = 1
     };
-    var ray = pst.vct.Vector3(0, 0, -1);
+    var ray = pst.vct.Vector3.init(0, 0, -1);
     var alpha : pst.vct.Vector3 = undefined;
-    if (raw.x > raw.y)
+    if (pos_x > pos_y)
     {
-        alpha = .{.x = 1.0, .y = 0.0, .z = b - a};
+        alpha = .{ .x = 1.0, .y = 0.0, .z = b - a};
     }
     else
     {
         alpha = .{ .x = 0.0, .y = 1.0, .z = c - a};
     }
-    var gamma = pst.vct.Vector3{1, 1, d - a};
+    var gamma = pst.vct.Vector3.init(1, 1, d - a);
     var normal = alpha.badCross(gamma);
 
     var denom = normal.vectorDot(ray);
@@ -252,7 +257,7 @@ pub fn applyNewHeightMap(bmp : fio.BMP) !void
 
                             var this_height : u32 = @floatToInt(u32, (a + b) * (1.0 - my) + (c + d) * my);
                                  
-                            this_height = a_height;
+                            //this_height = a_height;
 
                             lowest = if (this_height < lowest) this_height else lowest;
                             

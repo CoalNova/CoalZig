@@ -95,5 +95,5 @@ pub fn setEngineStateFlag(engine_flag : EngineFlag) void
 /// Returns if the provided flag is set to true
 pub fn getEngineStateFromFlag(engine_flag : EngineFlag) bool
 {
-    return ((@enumToInt(engine_flag) & engine_state) > 0);
+    return ((@enumToInt(engine_flag) & engine_state) != 0);
 }

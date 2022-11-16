@@ -136,6 +136,8 @@ pub fn loadChunkHeightFile(chunk : *chk.Chunk) !*chk.Chunk
 
     _ = try file.read(temp_heights);
     
+    for(chunk.heights) |h, i| chunk.heights[i] = h * 0; // + (@intCast(u16, temp_heights[i * 2]) << 1) + temp_heights[i * 2 + 1];
+    for(temp_heights) |h, i| chunk.heights[i >> 1] += @intCast(u16, h << @intCast(u1,(i  &  1)));
 
     return chunk;
 }

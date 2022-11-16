@@ -25,7 +25,7 @@ pub fn getSprite(sprite_id : u32) *spt.Sprite
         sprites[sprite_id] = spt.Sprite
         {
             .surface = getSurface(sprite_id >> 8),
-            .volume = .{.x = 32, .y = 8, .z = 128},
+            .volume = .{.x = 32, .y = 16, .z = 80},
             .offset = .{.x = 0, .y = 0},
             .id = sprite_id,
             .subscribers = 0,

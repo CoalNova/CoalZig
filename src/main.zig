@@ -30,9 +30,16 @@ test "draw"
     }
 }
 
+test "position accuracy"
+{
+    var starter = pst.vct.Vector3.init(64, 64, 64);
+    var taker = pst.Position.init(.{}, starter);
+
+    std.debug.assert (taker.axial().x == starter.x);
+}
+
 pub fn main() !void 
 {
-
     // Start system, exit if initialization failure
     if (sys.ignite() != 0)
         return;
@@ -41,26 +48,36 @@ pub fn main() !void
     // the focal point used for the system
     // TODO establish and finalize a relationship between focus and window
     var focus = fcs.Focus{};
-    focus.position = pst.Position.init(.{.x = 1, .y = 1, .z = 0}, .{.x = 512.0, .y = 512.0, .z = 0});
+    focus.position = pst.Position.init(.{.x = 3, .y = 3, .z = 0}, .{.x = 512.0, .y = 512.0, .z = 0});
     focus.range = 32; 
-
-
-
 
     fcs.updateFocalPoint(&focus);
 
     // DEBUG
-    try chk.applyNewHeightMap(try fio.loadBMP());
+    // try chk.applyNewHeightMap(try fio.loadBMP());
 
     // Main loop, all logic calls will be accessed through this
     while (!sys.getEngineStateFromFlag(sys.EngineFlag.ef_quitflag)) 
     {
         // Process SDL events
         evs.processEvents();
+        
+        var m : f32 = 0.03;
+
+        if (evs.matchKeyState(sys.sdl.SDL_SCANCODE_LSHIFT, evs.InputStates.inp_stay))
+            m = 0.3;
+            
+        if (evs.matchKeyState(sys.sdl.SDL_SCANCODE_W, evs.InputStates.inp_stay))
+            focus.position = focus.position.addVec(pst.vct.Vector3.init(-m, m, 0.0));
+        if (evs.matchKeyState(sys.sdl.SDL_SCANCODE_S, evs.InputStates.inp_stay))
+            focus.position = focus.position.addVec(pst.vct.Vector3.init(m, -m, 0.0));
+        if (evs.matchKeyState(sys.sdl.SDL_SCANCODE_A, evs.InputStates.inp_stay))
+            focus.position = focus.position.addVec(pst.vct.Vector3.init(-m, -m, 0.0));
+        if (evs.matchKeyState(sys.sdl.SDL_SCANCODE_D, evs.InputStates.inp_stay))
+            focus.position = focus.position.addVec(pst.vct.Vector3.init(m, m, 0.0));
 
         // render all portions of scene
         rns.softRender(wns.getWindow(), &focus);
         sys.sdl.SDL_Delay(15);
     }
 }
-
