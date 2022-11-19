@@ -105,39 +105,47 @@ pub fn getHeight(position : pst.Position) f32
     //check if requested height could exist
     if (!chunkIndexIsValid(position.index()))
         return 0.0;
+
+    var chunk = getChunk(position.index());
+    
     //check if chunk has loaded height data
-    if (getChunk(position.index()).loaded == false)
+    if (!chunk.loaded)
         return 0.0;
-    var pos_x = position.x;
-    var pos_y = position.y;
+
+    var axial = position.axial();
+    var ind_x = position.index().x;
+    var ind_y = position.index().y;
+    var pos_x = @floatToInt(i32, axial.x);
+    var pos_y = @floatToInt(i32, axial.y);
+    var dec_x = axial.x - @intToFloat(f32, pos_x);
+    var dec_y = axial.y - @intToFloat(f32, pos_y);
     
     //check if requested height is rounded value
-    if ((pos_x & ((1 << 18) - 1)) == 0 and (pos_y & ((1 << 18) - 1)) == 0)
+    if (dec_x == 0 and dec_y == 0)
     {
         //check if position indices are odd and interpolate if so
-        if (((pos_x >> 18) & 1) == 1 and ((pos_y >> 18) & 1) == 1)
+        if (pos_x == 1 and pos_y == 1)
             return (
                 getHeight(position.addVec(pst.vct.Vector3.init(1.0, 1.0, 0))) +
                 getHeight(position.addVec(pst.vct.Vector3.init(1.0, -1.0, 0))) +
                 getHeight(position.addVec(pst.vct.Vector3.init(-1.0, -1.0, 0))) +
                 getHeight(position.addVec(pst.vct.Vector3.init(-1.0, 1.0, 0))) 
                 ) / 4.0;
-        if ((pos_x >> 18) & 1 == 1)
+        if (pos_x == 1)
             return(
                 getHeight(position.addVec(pst.vct.Vector3.init(1.0, 0, 0))) +
                 getHeight(position.addVec(pst.vct.Vector3.init(-1.0, 0, 0)))
                 ) / 2.0;
-        if ((pos_y >> 18) & 1 == 1)
+        if (pos_y == 1)
             return(
                 getHeight(position.addVec(pst.vct.Vector3.init(0.0, 1.0, 0))) +
                 getHeight(position.addVec(pst.vct.Vector3.init(0.0, -1.0, 0)))
                 ) / 2.0;
         //otherwise resolve directly
-        var chunk = getChunk(position.index());
         //height data is stored in chunks using a major and minor value
         //the major value is the heightmod, which blanketly sets the base height at some value in an unsigned char * 1024.0f
         //the minor value is an unsigned short * 0.02f, keeping per-height accuracy down to 2 centimeters (or two-hundredths of chosen unit of measure)
-        return @intToFloat(f32, chunk.heights[@intCast(usize,@floatToInt(i32, position.axial().x / 2.0) + @floatToInt(i32, (position.axial().y / 2.0) * 512))]) * 
+        return @intToFloat(f32, chunk.heights[@intCast(usize, (pos_x >> 1) + (pos_y >> 1) * 512 )]) * 
             0.02 + @intToFloat(f32, chunk.height_mod) * 1024.0;
     }
 
@@ -147,37 +155,27 @@ pub fn getHeight(position : pst.Position) f32
     // - - -
     // a | b
 
-    pos_x = pos_x & (((1 << 10) - 1) << 18); 
-    pos_y = pos_y & (((1 << 10) - 1) << 18);
-
-    var a = getHeight(.{.x = pos_x, .y = pos_y, .z = 0});
-    var b = getHeight(.{.x = pos_x + (1 << 18), .y = pos_y, .z = 0});
-    var c = getHeight(.{.x = pos_x, .y = pos_y + (1 << 18), .z = 0});
-    var d = getHeight(.{.x = pos_x + (1 << 18), .y = pos_y + (1 << 18), .z = 0});
+    var a = getHeight(.{.x = (ind_x << 28) + (pos_x << 18), .y =(ind_y << 28) + (pos_y << 18), .z = 0});
+    var b = getHeight(.{.x = (ind_x << 28) + ((pos_x + 1) << 18), .y =(ind_y << 28) + (pos_y << 18), .z = 0});
+    var c = getHeight(.{.x = (ind_x << 28) + (pos_x << 18), .y =(ind_y << 28) + ((pos_y + 1) << 18), .z = 0});
+    var d = getHeight(.{.x = (ind_x << 28) + ((pos_x + 1) << 18), .y =(ind_y << 28) + ((pos_y + 1) << 18), .z = 0});
 
     //calculate ray plane slope intersection formula 
     var origin = pst.vct.Vector3
     {
-        .x = @intToFloat(f32, (position.x & ((1 << 18) - 1))) / @intToFloat(f32, 1 << 18), 
-        .y = @intToFloat(f32, (position.y & ((1 << 18) - 1))) / @intToFloat(f32, 1 << 18), 
-        .z = 1
+        .x = dec_x, 
+        .y = dec_y, 
+        .z = 5.0
     };
-    var ray = pst.vct.Vector3.init(0, 0, -1);
-    var alpha : pst.vct.Vector3 = undefined;
-    if (pos_x > pos_y)
-    {
-        alpha = .{ .x = 1.0, .y = 0.0, .z = b - a};
-    }
-    else
-    {
-        alpha = .{ .x = 0.0, .y = 1.0, .z = c - a};
-    }
+    var ray = pst.vct.Vector3.init(0, 0, -1.0);
+    var alpha : pst.vct.Vector3 = if (dec_x > dec_y) .{ .x = 1.0, .y = 0.0, .z = b - a} else .{ .x = 0.0, .y = 1.0, .z = c - a};
+    
     var gamma = pst.vct.Vector3.init(1, 1, d - a);
     var normal = alpha.badCross(gamma);
 
     var denom = normal.vectorDot(ray);
     var dist : f32 = 0.0;
-    if (denom > 0.00001 or denom > 0.00001)
+    if (denom > 0.00001 or denom < 0.00001)
     {
         var inv = pst.vct.Vector3{.x = -origin.x, .y = -origin.y, .z = -origin.z};
         dist = inv.vectorDot(normal) / denom;
@@ -290,9 +288,53 @@ pub fn applyNewHeightMap(bmp : fio.BMP) !void
                 }
             }
             
+            //_ = smooveHeights(chunk);
+
             _ = try fio.saveChunkHeightFile(chunk);
             unloadChunk(chunk.index);
             std.debug.print("Completed scan input of chunk ({d}, {d}, {d})", .{chunk.index.x, chunk.index.y, chunk.index.z});
         }
     }    
+}
+
+pub fn smooveHeights(chunk : *Chunk) *Chunk
+{
+    if (!chunk.loaded)
+    {
+        return chunk;
+    }
+
+    const range : i32 = 5; 
+    const steps : i32 = 5;
+
+    var y : usize = 0;
+    while (y < 512) : (y += 1)
+    {
+        var x : usize = 0;
+        while (x < 512) : (x += 1)
+        {
+            var avg : i32 = 0;
+            var ctr : i32 = 0;
+
+            var sy = -range * steps;
+            while(sy <= range * steps) : (sy += steps)
+            {
+                var sx = -range * steps;
+                while(sx <= range * steps) : (sx += steps)
+                {
+                    if (sx + @intCast(i32, x) < 512 and sx + @intCast(i32, x) >= 0 and 
+                        sy + @intCast(i32, y) < 512 and sy + @intCast(i32, y) >= 0)
+                    {
+                        avg += chunk.heights[@intCast(usize, sx + @intCast(i32, x) + (sy + @intCast(i32, y)) * 512)];
+                        ctr += 1;
+                    }
+                }
+            }
+
+            chunk.heights[x + y * 512] =  @intCast(u16, @divFloor(avg, ctr));
+        }
+    }
+    
+
+    return chunk;
 }

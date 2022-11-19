@@ -48,13 +48,13 @@ pub fn main() !void
     // the focal point used for the system
     // TODO establish and finalize a relationship between focus and window
     var focus = fcs.Focus{};
-    focus.position = pst.Position.init(.{.x = 3, .y = 3, .z = 0}, .{.x = 512.0, .y = 512.0, .z = 0});
+    focus.position = pst.Position.init(.{.x = 4, .y = 4, .z = 0}, .{.x = 512.0, .y = 512.0, .z = 0});
     focus.range = 32; 
 
     fcs.updateFocalPoint(&focus);
 
     // DEBUG
-    // try chk.applyNewHeightMap(try fio.loadBMP());
+    try chk.applyNewHeightMap(try fio.loadBMP());
 
     // Main loop, all logic calls will be accessed through this
     while (!sys.getEngineStateFromFlag(sys.EngineFlag.ef_quitflag)) 
@@ -66,7 +66,7 @@ pub fn main() !void
 
         if (evs.matchKeyState(sys.sdl.SDL_SCANCODE_LSHIFT, evs.InputStates.inp_stay))
             m = 0.3;
-            
+
         if (evs.matchKeyState(sys.sdl.SDL_SCANCODE_W, evs.InputStates.inp_stay))
             focus.position = focus.position.addVec(pst.vct.Vector3.init(-m, m, 0.0));
         if (evs.matchKeyState(sys.sdl.SDL_SCANCODE_S, evs.InputStates.inp_stay))
@@ -76,8 +76,15 @@ pub fn main() !void
         if (evs.matchKeyState(sys.sdl.SDL_SCANCODE_D, evs.InputStates.inp_stay))
             focus.position = focus.position.addVec(pst.vct.Vector3.init(m, m, 0.0));
 
+
+
+        std.debug.print("position: ({e}, {e}, {e})\n", .{
+            focus.position.axial().x, 
+            focus.position.axial().y, 
+            chk.getHeight(focus.position)});
+
         // render all portions of scene
         rns.softRender(wns.getWindow(), &focus);
-        sys.sdl.SDL_Delay(15);
+        sys.sdl.SDL_Delay(30);
     }
 }

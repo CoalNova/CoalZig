@@ -50,6 +50,15 @@ pub const Vector3 = struct
 			.z = lhd.y * rhd.x - lhd.x * rhd.y
 		};
 	}
+    pub inline fn cross (self : Vector3, vect : Vector3) Vector3
+    {
+        return Vector3
+        {
+            .x = self.y * vect.z - self.z * vect.y,
+            .y = self.z * vect.x - self.x * vect.z,
+            .z = self.x * vect.y - self.y * vect.x
+        };
+    }
     /// Dot product of two vectors
     pub inline fn vectorDot(a : Vector3, b : Vector3) f32
 	{

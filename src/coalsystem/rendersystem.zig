@@ -41,6 +41,8 @@ fn renderSoftTerrain(window : *wnd.Window, focal_point : *fcs.Focus) void
     var s_off_x = @floatToInt(i32, @mod(axial.x, 1.0) * @intToFloat(f32, sprite.volume.x >> 1)) + @floatToInt(i32, @mod(axial.y, 1.0) * @intToFloat(f32, sprite.volume.x >> 1));
     var s_off_y = (sprite.volume.y >> 1) + @floatToInt(i32, @mod(axial.x, 1.0) * @intToFloat(f32, sprite.volume.y >> 1)) - @floatToInt(i32, @mod(axial.y, 1.0) * @intToFloat(f32, sprite.volume.y >> 1));
 
+    const focal_height = @floatToInt(i32, chk.getHeight(focal_point.position) * @intToFloat(f32, sprite.volume.y));
+
     var y : i32 = 0;
     while (y <= (wind_height << 1)) : (y += 1)
     {
@@ -63,8 +65,8 @@ fn renderSoftTerrain(window : *wnd.Window, focal_point : *fcs.Focus) void
                 var s_pos = pst.Position.init(focal_point.position.index(), s_vex);
                 var s_off = chk.getHeight(s_pos) * @intToFloat(f32, sprite.volume.y);
 
-                screen_rect.y += @floatToInt(i32, s_off);
-                screen_rect.y -= @floatToInt(i32, chk.getHeight(focal_point.position)) * sprite.volume.y;
+                screen_rect.y -= @floatToInt(i32, s_off);
+                screen_rect.y += focal_height;
                 _ = sdl.SDL_BlitSurface(sprite.surface.sdl_surface, &sprite_rect, window.terr_surface, &screen_rect);
 
             }
