@@ -11,23 +11,21 @@ pub fn build(b: *std.build.Builder) void {
     // between Debug, ReleaseSafe, ReleaseFast, and ReleaseSmall.
     const mode = b.standardReleaseOptions();
 
-    const windows_environment = b.option(bool, "windows", "building on windows") orelse false;
     const exe = b.addExecutable("CoalZig", "src/main.zig");
 
-    if (windows_environment)
-    {
-        // hopefully this should enable building on windows
-        // look up how to link SDL relative library on windows
-
-        std.debug.print("Building in a Windows environment\n", .{});    
-    }
-    else
-    {
+    // OS version check for linking whil developing on seperate platforms
+    if (target.isWindows()) {
+        std.debug.print("Building in a Windows environment\n", .{});
+        // change to the desired code path
+        const sdl_path = "C:/SDL2/";
+        exe.addIncludePath(sdl_path ++ "include");
+        exe.addLibraryPath(sdl_path ++ "lib64/");
+        b.installBinFile(sdl_path ++ "lib64/SDL2.dll", "SDL2.dll");
+    } else {
         std.debug.print("Building in a Linux environment\n", .{});
-        exe.linkSystemLibrary("SDL2");
-        exe.linkSystemLibrary("c");
     }
-    exe.setTarget(target);
+    exe.linkSystemLibrary("SDL2");
+    exe.linkSystemLibrary("c");
     exe.setBuildMode(mode);
     exe.install();
 

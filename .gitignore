@@ -1,3 +1,4 @@
 zig-out/bin/CoalZig
 zig-cache/*
 assets/*
+zig-out/*
