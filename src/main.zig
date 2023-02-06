@@ -47,7 +47,7 @@ pub fn main() !void {
     fcs.updateFocalPoint(&focus);
 
     // DEBUG
-    //try chk.applyNewHeightMap(try fio.loadBMP());
+    try chk.applyNewHeightMap(try fio.loadBMP());
 
     // Main loop, all logic calls will be accessed through this
     while (!sys.getEngineStateFromFlag(sys.EngineFlag.ef_quitflag)) {
@@ -57,7 +57,7 @@ pub fn main() !void {
         var m: f32 = 0.03;
 
         if (evs.matchKeyState(sys.sdl.SDL_SCANCODE_LSHIFT, evs.InputStates.inp_stay))
-            m = 0.3;
+            m = 1.3;
 
         if (evs.matchKeyState(sys.sdl.SDL_SCANCODE_W, evs.InputStates.inp_stay))
             focus.position = focus.position.addVec(pst.vct.Vector3.init(-m, m, 0.0));

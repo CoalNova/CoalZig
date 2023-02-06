@@ -17,8 +17,8 @@ pub fn createWindow() i32
 {
     var rect = sys.sdl.SDL_Rect
     {   
-        .w = 640,
-        .h = 480,
+        .w = 1024,
+        .h = 576,
         .x = 300,
         .y = 100
     };

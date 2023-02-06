@@ -57,7 +57,7 @@ fn renderSoftTerrain(window : *wnd.Window, focal_point : *fcs.Focus) void
                     .y = y * (sprite.volume.y >> 1) + x * (sprite.volume.x >> 2) - (wind_height >> 1) * (sprite.volume.y >> 1) - s_off_y
                 };
 
-            if (screen_rect.x > -sprite.volume.x and screen_rect.x < window.window__rect.x * 2 + sprite.volume.x)
+            if (screen_rect.x > -sprite.volume.x and screen_rect.x < window.window__rect.w + sprite.volume.x)
             {
                 var s_vec = pst.vct.Vector3.init(@intToFloat(f32, (x - wind__width)), @intToFloat(f32, -(y - wind_height)), 0.0);
                 s_vec = s_vec.add(focal_point.position.axial());
