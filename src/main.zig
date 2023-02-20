@@ -2,35 +2,11 @@ const std = @import("std");
 const sys = @import("coalsystem/coalsystem.zig");
 const evs = @import("coalsystem/eventsystem.zig");
 const rns = @import("coalsystem/rendersystem.zig");
-const wns = @import("coalsystem/windowsystem.zig");
+const wnd = @import("coaltypes/window.zig");
 const fcs = @import("coaltypes/focus.zig");
 const pst = @import("coaltypes/position.zig");
 const chk = @import("coaltypes/chunk.zig");
 const fio = @import("coalsystem/fileiosystem.zig");
-
-test "draw" {
-    std.debug.print("\n", .{});
-    var y: i32 = 0;
-    while (y <= 6) : (y += 1) {
-        var x_span = y * 6 - y * y;
-        var x: i32 = 0;
-        while (x <= ((6 - x_span) >> 1) + 1) : (x += 1) {
-            std.debug.print("  ", .{});
-        }
-        x = 0;
-        while (x <= x_span) : (x += 1) {
-            std.debug.print(". ", .{});
-        }
-        std.debug.print("\n", .{});
-    }
-}
-
-test "position accuracy" {
-    var starter = pst.vct.Vector3.init(64, 64, 64);
-    var taker = pst.Position.init(.{}, starter);
-
-    std.debug.assert(taker.axial().x == starter.x);
-}
 
 pub fn main() !void {
     // Start system, exit if initialization failure
@@ -71,7 +47,35 @@ pub fn main() !void {
         std.debug.print("position: ({e}, {e}, {e})\n", .{ focus.position.axial().x, focus.position.axial().y, chk.getHeight(focus.position) });
 
         // render all portions of scene
-        rns.softRender(wns.getWindow(), &focus);
+        rns.softRender(wnd.getWindow(), &focus);
         sys.sdl.SDL_Delay(30);
     }
+}
+
+test "draw" {
+    std.debug.print("\n", .{});
+    var y: i32 = 0;
+    while (y <= 6) : (y += 1) {
+        var x_span = y * 6 - y * y;
+        var x: i32 = 0;
+        while (x <= ((6 - x_span) >> 1) + 1) : (x += 1) {
+            std.debug.print("  ", .{});
+        }
+        x = 0;
+        while (x <= x_span) : (x += 1) {
+            std.debug.print(". ", .{});
+        }
+        std.debug.print("\n", .{});
+    }
+}
+
+test "position accuracy" {
+    var starter = pst.vct.Vector3.init(64, 64, 64);
+    var taker = pst.Position.init(.{}, starter);
+
+    std.debug.assert(taker.axial().x == starter.x);
+}
+
+test "OoB heightcheck" {
+    chk.GetChunk(.{ .x = -1, .y = -1, .z = 0 }) == error.OutofBoundsChunkMapAccess;
 }
