@@ -1,11 +1,10 @@
-pub const sdl = @cImport({
-    @cInclude("SDL2/SDL.h");
-});
+pub const sdl = @cImport({@cInclude("SDL2/SDL.h");});
 const std = @import("std");
-const wns = @import("windowsystem.zig");
-const rps = @import("reportsystem.zig");
+const alc = @import("../coalsystem/allocationsystem.zig");
 const rpt = @import("../coaltypes/report.zig");
 const chk = @import("../coaltypes/chunk.zig");
+const wnd = @import("../coaltypes/window.zig");
+
 
 // The current tic of the engine,
 // used for logging and perhaps indescriminately timed occurances
@@ -28,24 +27,33 @@ pub const EngineFlag = enum(u16) {
 /// SDL lib, initialization of memory, and other such processes
 /// TODO system to handle engine component failure better than simply failing out
 /// TODO get logging system in for engine specific behavior problems
+/// TODO xml, json, or other meta file for initializing engine params
 pub fn ignite() i32 {
     var startup_state: i32 = 0;
 
     startup_state = sdl.SDL_Init(sdl.SDL_INIT_VIDEO);
     if (startup_state != 0) {
         engine_state |= @enumToInt(EngineFlag.ef_quitflag);
+        rpt.logReport(rpt.Report.init
+            (
+                @enumToInt(rpt.ReportType.level_terminal | rpt.ReportType.sdl_system),
+                10,
+                i32{0,0,0,0},
+                engine_tick,
+            ));
         return startup_state;
     }
-    rps.logReport(rpt.Report{
-        .report_type = @enumToInt(rpt.ReportType.lvl_info | rpt.ReportType.sdl__sys),
-        .report_mssg = 0,
-        .report_data = [_]i32{0} ** 4,
-        .report_etic = engine_tick,
-    });
+    rpt.logReport(rpt.Report.init
+        (
+            @enumToInt(rpt.ReportType.level_information | rpt.ReportType.sdl_system),
+            11,
+            i32{0,0,0,0},
+            engine_tick,
+        ));
 
-    chk.initializeChunkMap();
+    chk.initializeChunkMap(alc.gpa_allocator);
 
-    startup_state = wns.createWindow();
+    startup_state = wnd.createWindow();
     if (startup_state != 0) {
         return startup_state;
     }
@@ -55,7 +63,7 @@ pub fn ignite() i32 {
 /// Shuts down the engine, deinitializes systems, and frees memory
 /// TODO actualize quit states for error checking and handling "* stopped responding" on quit is unacceptable
 pub fn douse() void {
-    _ = wns.destroyWindow();
+    _ = wnd.destroyWindow();
     sdl.SDL_Quit();
 }
 
