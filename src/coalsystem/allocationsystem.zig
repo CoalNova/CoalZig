@@ -5,9 +5,8 @@ var gpa = std.heap.GeneralPurposeAllocator(.{}){};
 /// TODO create more complex List structures
 pub const gpa_allocator = gpa.allocator();
 
-
 const stdout_file = std.io.getStdOut().writer();
 var bw = std.io.bufferedWriter(stdout_file);
-/// Stream Writeable Comparable 
+/// Stream Writeable Comparable
 pub const stdout = bw.writer();
-    //try bw.flush(); // don't forget to flush!
+//try bw.flush(); // don't forget to flush!

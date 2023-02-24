@@ -1,6 +1,6 @@
 const std = @import("std");
 const sys = @import("../coalsystem/coalsystem.zig");
-const rps = @import("../coalsystem/reportsystem.zig");
+const rps = @import("../coaltypes/report.zig");
 const rpt = @import("report.zig");
 const pst = @import("position.zig");
 const pnt = @import("../simpletypes/points.zig");

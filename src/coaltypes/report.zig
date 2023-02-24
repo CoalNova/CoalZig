@@ -1,6 +1,6 @@
 const std = @import("std");
 const alc = @import("../coalsystem/allocationsystem.zig");
-const str = @import("../coaltypes/coalstring.zig");
+const str = @import("../coaltypes/string.zig");
 
 /// A bitmaskable flag series for report classification
 pub const ReportCatagory = enum(u16) {
@@ -39,57 +39,59 @@ pub const ReportCatagory = enum(u16) {
 };
 
 /// Report struct, used to log engine events
-pub const Report = struct 
-{
+pub const Report = struct {
     catagory: u16 = 0,
     message: u32 = 0,
     relevant_data: [4]i32 = [_]i32{0} ** 4,
     engine_tick: usize = 0,
-    pub fn init(cat: ReportCatagory, mssg: u32, rel_data: [4]i32, e_tick: usize) Report {
+    pub fn init(cat: u16, mssg: u32, rel_data: [4]i32, e_tick: usize) Report {
         return .{ .catagory = cat, .message = mssg, .relevant_data = rel_data, .engine_tick = e_tick };
     }
 };
 
 // bitmask filter for what issues to print to output stream
-pub var report_print_mask : u32 = 14;
-var report_log: *Report = alc.gpa_allocator.alloc(Report, 32);
+pub var report_print_mask: u32 = 14;
+var report_log : []Report = undefined;
 var report_count: usize = 0;
 
-
-pub fn logReport(report: Report) void 
+pub fn initLog() !void 
 {
+    report_log = try alc.gpa_allocator.alloc(Report, 32);
+}
+
+pub fn logReport(report: Report) void {
     if (report_count >= report_log.len) {
-        var new_log: *Report = try alc.gpa_allocator.alloc(Report, report_log.len * 2) catch {};
-        for (report_log) |r, i| new_log[i] = r;
+        var new_log : []Report = alc.gpa_allocator.alloc(Report, report_log.len * 2) catch
+        {
+            std.debug.print("Unable to print to stream writer\n", .{});
+            return;
+        };
+        for (report_log, 0..) |r, i| new_log[i] = r;
         alc.gpa_allocator.free(report_log);
         report_log = new_log;
     }
     report_log[report_count] = report;
     report_count += 1;
     if ((report.catagory & report_print_mask) != 0)
-        try alc.stdout.print("", .{}) catch
-            std.debug.print("Unable to print to stream writer", .{});
-    
-    
+        alc.stdout.print("", .{}) catch
+        {
+            std.debug.print("Unable to print to stream writer\n", .{});
+            return;
+        };
 }
 
-pub fn printReport(report : Report) void
-{
-    var i : u4 = 0;
-    while(i < 16)
-    {
+pub fn printReport(report: Report) void {
+    var i: u4 = 0;
+    while (i < 16) {
         if ((report & (1 << i)) != 0)
-            try alc.stdout.print("%s", .{ getCatagoryString(report & (1 << i))}) catch
+            try alc.stdout.print("%s", .{getCatagoryString(report & (1 << i))}) catch
                 std.debug.print("Unable to print to stream writer", .{});
         i += 1;
     }
-    
 }
 
-pub fn getMessageString(message_index : u16) []u8
-{
-    switch(message_index)
-    {
+pub fn getMessageString(message_index: u16) []u8 {
+    switch (message_index) {
         0 => return "Praise be the debug cube!",
         2 => return "CoalStar Initialized Successfully",
         3 => return "CoalStar Initialization Failed",
@@ -99,15 +101,14 @@ pub fn getMessageString(message_index : u16) []u8
         13 => return "SDL Audio Initialization Failed",
         14 => return "SDL Image Initialized Successfully",
         15 => return "SDL Image Initialization Failed",
-        else => return ""
+        31 => return "Window group collection failed",
+        else => return "",
     }
     unreachable;
 }
 
-pub fn getCatagoryString(category : u16) []u8
-{
-    switch(category)
-    {
+pub fn getCatagoryString(category: u16) []u8 {
+    switch (category) {
         0b0000_0000_0000_0001 => return "Information",
         0b0000_0000_0000_0010 => return "Warning",
         0b0000_0000_0000_0100 => return "Error",
@@ -123,8 +124,8 @@ pub fn getCatagoryString(category : u16) []u8
         0b0001_0000_0000_0000 => return "Asset Management",
         0b0010_0000_0000_0000 => return "Chunk",
         0b0100_0000_0000_0000 => return "Audio",
-        0b1000_0000_0000_0000 => return "Physics", 
-        else => return "" 
+        0b1000_0000_0000_0000 => return "Physics",
+        else => return "",
     }
     unreachable;
 }

@@ -1,6 +1,9 @@
-pub const sdl = @cImport({@cInclude("SDL2/SDL.h");});
+pub const sdl = @cImport({
+    @cInclude("SDL2/SDL.h");
+});
 const std = @import("std");
 const alc = @import("../coalsystem/allocationsystem.zig");
+const evs = @import("../coalsystem/eventsystem.zig");
 const rpt = @import("../coaltypes/report.zig");
 const chk = @import("../coaltypes/chunk.zig");
 const wnd = @import("../coaltypes/window.zig");
@@ -12,7 +15,7 @@ var engine_tick: usize = 0;
 
 // the current engine state
 // seperate from any game event, this tracks engine specific details
-var engine_state: u32 = 0;
+var engine_state: u16 = 0;
 
 /// Engine Flags are operational guidelines for any special engine operations
 /// TODO attempt to conceptualize necessary engine modes required
@@ -28,48 +31,63 @@ pub const EngineFlag = enum(u16) {
 /// TODO system to handle engine component failure better than simply failing out
 /// TODO get logging system in for engine specific behavior problems
 /// TODO xml, json, or other meta file for initializing engine params
-pub fn ignite() i32 {
-    var startup_state: i32 = 0;
+pub fn ignite() void {
 
-    startup_state = sdl.SDL_Init(sdl.SDL_INIT_VIDEO);
-    if (startup_state != 0) {
-        engine_state |= @enumToInt(EngineFlag.ef_quitflag);
+    rpt.initLog() catch |err| 
+    {
+        std.debug.print("initialization of report log failed {!}\n", .{err});
+        setEngineStateFlag(EngineFlag.ef_quitflag);
+        return;
+    };
+    
+
+    wnd.initWindowGroup() catch |err| 
+    {
+        std.debug.print("initialization of window group collection failed {!}\n", .{err});
         rpt.logReport(rpt.Report.init
-            (
-                @enumToInt(rpt.ReportType.level_terminal | rpt.ReportType.sdl_system),
-                10,
-                i32{0,0,0,0},
-                engine_tick,
-            ));
-        return startup_state;
-    }
-    rpt.logReport(rpt.Report.init
         (
-            @enumToInt(rpt.ReportType.level_information | rpt.ReportType.sdl_system),
-            11,
-            i32{0,0,0,0},
-            engine_tick,
+            @enumToInt(rpt.ReportCatagory.level_terminal) | @enumToInt(rpt.ReportCatagory.memory_allocation),
+            31,
+            [4]i32{0,0,0,0}, 
+            engine_tick
+        ));            
+        setEngineStateFlag(EngineFlag.ef_quitflag);
+        return;
+    };
+
+    if (sdl.SDL_Init(sdl.SDL_INIT_VIDEO) != 0) 
+    {
+        rpt.logReport(rpt.Report.init
+        (
+            @enumToInt(rpt.ReportCatagory.level_terminal) | @enumToInt(rpt.ReportCatagory.sdl_system),
+            11, [_]i32{ 0, 0, 0, 0 }, engine_tick,
         ));
-
-    chk.initializeChunkMap(alc.gpa_allocator);
-
-    startup_state = wnd.createWindow();
-    if (startup_state != 0) {
-        return startup_state;
+        setEngineStateFlag(EngineFlag.ef_quitflag);
+        return;
     }
-    return startup_state;
+
+    rpt.logReport(rpt.Report.init
+    (
+        @enumToInt(rpt.ReportCatagory.level_information) | @enumToInt(rpt.ReportCatagory.sdl_system),
+        10, [_]i32{ 0, 0, 0, 0 }, engine_tick,
+    ));
+    var name : [8]u8 = [_]u8{'a'} ** 8; 
+    wnd.createWindow(wnd.WindowType.hardware, &name, .{ .w = 50, .x = 50, .y = 50, .z = 50 }) catch |err|
+    {
+        std.debug.print("Window generation failed: {!}\n", .{err});
+        rpt.logReport(rpt.Report.init
+        (
+            @enumToInt(rpt.ReportCatagory.level_error) | @enumToInt(rpt.ReportCatagory.window_system),
+            33,[4]i32{0,0,0,0}, engine_tick
+        ));
+    };
 }
 
 /// Shuts down the engine, deinitializes systems, and frees memory
 /// TODO actualize quit states for error checking and handling "* stopped responding" on quit is unacceptable
 pub fn douse() void {
-    _ = wnd.destroyWindow();
+    
     sdl.SDL_Quit();
-}
-
-/// Increments engine tic, run only once per frame
-pub fn incrementEngineTick() void {
-    engine_tick +%= 1;
 }
 
 /// Retrieves a copy of the current engine tic
@@ -78,7 +96,7 @@ pub fn getEngineTick() usize {
 }
 
 /// Retrieves a copy of the current engine state bit array
-pub fn getEngineState() u32 {
+pub fn getEngineState() u16 {
     return engine_state;
 }
 
@@ -87,7 +105,16 @@ pub fn setEngineStateFlag(engine_flag: EngineFlag) void {
     engine_state |= @enumToInt(engine_flag);
 }
 
-/// Returns if the provided flag is set to true
-pub fn getEngineStateFromFlag(engine_flag: EngineFlag) bool {
-    return ((@enumToInt(engine_flag) & engine_state) != 0);
+/// Returns if the provided flag is set
+pub fn getEngineStateFlag(engine_flag : EngineFlag) bool 
+{
+    return (@enumToInt(engine_flag) & engine_state) != 0;
+}
+
+//
+pub fn runEngine() void 
+{
+    engine_tick +%= 1;
+    sdl.SDL_Delay(15);
+    evs.processEvents();
 }

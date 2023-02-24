@@ -1,11 +1,8 @@
 const std = @import("std");
-const sys = @import("../coalsystem/coalsystem.zig");
 const spt = @import("sprite.zig");
-const asy = @import("../coalsystem/assetsystem.zig");
 const alc = @import("../coalsystem/allocationsystem.zig");
-const pst = @import("position.zig");
-const fio = @import("../coalsystem/fileiosystem.zig");
-const evs = @import("../coalsystem/eventsystem.zig");
+const pst = @import("../coaltypes/position.zig");
+const fcs = @import("../coaltypes/focus.zig");
 
 /// The container struct for world chunk
 /// will contain references to create/destroy/move setpieces and objects
@@ -40,4 +37,15 @@ pub fn getChunk(index: pst.pnt.Point3) !*Chunk {
     }
     chunk = try &chunk_map[index.x + index.y * map_bounds.x];
     return chunk;
+}
+
+pub fn constructBaseMesh(chunk: *Chunk) ?[]u8 {
+    _ = chunk;
+    return null;
+}
+
+pub fn updateMeshIBO(chunk: *Chunk, focal_point: fcs.Focus) ?[]u8 {
+    _ = chunk;
+    _ = focal_point;
+    return null;
 }

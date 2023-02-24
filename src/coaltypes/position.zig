@@ -3,7 +3,7 @@ pub const vct = @import("../simpletypes/vectors.zig");
 
 /// Worldspace position, contains the dimensional index and the intradimensional axial coordinates
 /// stores position as a packed signed 64 bit integers, per axis
-/// 
+///
 pub const Position = struct {
     x: i64 = 0,
     y: i64 = 0,

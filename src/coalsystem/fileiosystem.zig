@@ -49,7 +49,7 @@ pub fn loadBMP() !BMP {
 }
 
 pub fn getChunkFileName(chunk: *chk.Chunk, filename: []u8) void {
-    for (chunk_file_path) |c, i| {
+    for (chunk_file_path, 0..) |c, i| {
         filename[i] = c;
     }
     filename[13] = @intCast(u8, @divFloor(chunk.index.x, 100) + 48);
@@ -116,8 +116,24 @@ pub fn loadChunkHeightFile(chunk: *chk.Chunk) !*chk.Chunk {
 
     _ = try file.read(temp_heights);
 
-    for (chunk.heights) |h, i| chunk.heights[i] = h * 0;
-    for (temp_heights) |h, i| chunk.heights[i >> 1] += @intCast(u16, h) << 8 * @intCast(u4, (i & 1));
+    for (chunk.heights, 0..) |h, i| chunk.heights[i] = h * 0;
+    for (temp_heights, 0..) |h, i| chunk.heights[i >> 1] += @intCast(u16, h) << 8 * @intCast(u4, (i & 1));
 
     return chunk;
+}
+
+pub fn loadMetaHeader(filename: []u8, chunk_map_bounds: *pnt.Point3) !void {
+    var file = try std.fs.cwd().openFile(filename, .{});
+    defer file.close();
+
+    var data = try file.readToEndAlloc(alc.gpa_allocator, 16384);
+    defer alc.gpa_allocator.free(data);
+    var lines = std.mem.split(u8, data);
+    chunk_map_bounds.init(0, 0, 0);
+    for (lines.buffer) |x|
+        chunk_map_bounds.x = chunk_map_bounds.x * 10 + (x - 48);
+    for (lines.buffer) |y|
+        chunk_map_bounds.y = chunk_map_bounds.y * 10 + (y - 48);
+    for (lines.buffer) |z|
+        chunk_map_bounds.z = chunk_map_bounds.z * 10 + (z - 48);
 }
