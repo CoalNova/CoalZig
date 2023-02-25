@@ -28,20 +28,21 @@ pub fn build(b: *std.Build) void {
     if (target.isWindows()) {
         std.debug.print("Building in a Windows environment\n", .{});
         // change to the desired code path
-        const sdl_path = "C:/SDL2/";
-        const cgm_path = "C:/CGLM/";
-        exe.addIncludePath(sdl_path ++ "include");
-        exe.addIncludePath(cgm_path ++ "include");
-        exe.addLibraryPath(sdl_path ++ "lib64/");
-        exe.addLibraryPath(cgm_path ++ "lib64/");
-        b.installBinFile(sdl_path ++ "lib64/SDL2.dll", "SDL2.dll");
-        b.installBinFile(cgm_path ++ "lib64/CGLM.dll", "CGLM.dll");
+        const sdl_path = "C:\\SDL2\\";
+        const glew_path = "C:\\glew\\";
+        exe.addIncludePath(sdl_path ++ "include\\");
+        exe.addIncludePath(glew_path ++ "include\\");
+        exe.addLibraryPath(sdl_path ++ "lib64\\");
+        exe.addLibraryPath(glew_path ++ "lib\\Release\\x64\\");
+        b.installBinFile(sdl_path ++ "lib64\\SDL2.dll", "SDL2.dll");
+        exe.linkSystemLibrary("libglew32");
+        exe.linkSystemLibrary("libglew32mx");
+        exe.linkSystemLibrary("glew32s");
     } else {
         std.debug.print("Building in a Linux environment\n", .{});
+        exe.linkSystemLibrary("glew");
     }
     exe.linkSystemLibrary("SDL2");
-    exe.linkSystemLibrary("cglm");
-    exe.linkSystemLibrary("glew");
     exe.linkSystemLibrary("c");
 
     // This declares intent for the executable to be installed into the
@@ -84,4 +85,11 @@ pub fn build(b: *std.Build) void {
     // running the unit tests.
     const test_step = b.step("test", "Run unit tests");
     test_step.dependOn(&exe_tests.step);
+}
+
+fn printWinReqs() void {
+    std.debug.print("Compilation on windows requires the libraries of:\n", .{});
+    std.debug.print("SDL https://www.libsdl.org/ @ C:\\SDL2 with include and lib(32/64) within\n", .{});
+    std.debug.print("GLEW https://glew.sourceforge.net/ @ C:\\glew\n", .{});
+    std.debug.print("ZMath(of ziggamedev) https://github.com/michal-z/zig-gamedev/tree/main/libs/zmath in the ./libs folder", .{});
 }

@@ -74,11 +74,7 @@ pub fn logReport(report: Report) void {
     report_log[report_count] = report;
     report_count += 1;
     if ((report.catagory & report_print_mask) != 0)
-        alc.stdout.print("", .{}) catch
-        {
-            std.debug.print("Unable to print to stream writer\n", .{});
-            return;
-        };
+        printReport(report);
 }
 
 pub fn logReportInit(cat: u16, mssg: u32, rel_data: [4]i32) void
@@ -87,12 +83,18 @@ pub fn logReportInit(cat: u16, mssg: u32, rel_data: [4]i32) void
 }
 
 pub fn printReport(report: Report) void {
-    var i: u4 = 0;
-    while (i < 16) {
-        if ((report & (1 << i)) != 0)
-            try alc.stdout.print("%s", .{getCatagoryString(report & (1 << i))}) catch
+    var i: u16 = 0;
+    while (i < 65536) {
+        if ((report.catagory & i) != 0)
+        {            
+            const stdout_file= std.io.getStdOut().writer();
+            var bw = std.io.bufferedWriter(stdout_file);
+            const stdout = bw.writer();
+            bw.flush() catch |err| std.debug.print("{!}\n", .{err}); // don't forget to flush!
+            stdout.print("NA\n", .{}) catch
                 std.debug.print("Unable to print to stream writer", .{});
-        i += 1;
+        }
+        i *= 2;
     }
 }
 
@@ -115,7 +117,7 @@ pub fn getMessageString(message_index: u16) []u8 {
     unreachable;
 }
 
-pub fn getCatagoryString(category: u16) []u8 {
+pub fn getCatagoryString(category: u16) *const u8 {
     switch (category) {
         0b0000_0000_0000_0001 => return "Information",
         0b0000_0000_0000_0010 => return "Warning",
