@@ -1,6 +1,7 @@
 const std = @import("std");
 const alc = @import("../coalsystem/allocationsystem.zig");
 const str = @import("../coaltypes/string.zig");
+const sys = @import("../coalsystem/coalsystem.zig");
 
 /// A bitmaskable flag series for report classification
 pub const ReportCatagory = enum(u16) {
@@ -80,6 +81,11 @@ pub fn logReport(report: Report) void {
         };
 }
 
+pub fn logReportInit(cat: u16, mssg: u32, rel_data: [4]i32) void
+{
+    logReport(Report.init(cat, mssg, rel_data, sys.getEngineTick()));
+}
+
 pub fn printReport(report: Report) void {
     var i: u4 = 0;
     while (i < 16) {
@@ -92,7 +98,8 @@ pub fn printReport(report: Report) void {
 
 pub fn getMessageString(message_index: u16) []u8 {
     switch (message_index) {
-        0 => return "Praise be the debug cube!",
+        0 => return "Praise be the cube!",
+        1 => return "Not yet implemented",
         2 => return "CoalStar Initialized Successfully",
         3 => return "CoalStar Initialization Failed",
         10 => return "SDL Initialized Succesfully",
@@ -102,7 +109,8 @@ pub fn getMessageString(message_index: u16) []u8 {
         14 => return "SDL Image Initialized Successfully",
         15 => return "SDL Image Initialization Failed",
         31 => return "Window group collection failed",
-        else => return "",
+        33 => return "Window exists outside of group",
+        else => return "Report text not yet implemented",
     }
     unreachable;
 }

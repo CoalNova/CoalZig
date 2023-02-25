@@ -29,13 +29,19 @@ pub fn build(b: *std.Build) void {
         std.debug.print("Building in a Windows environment\n", .{});
         // change to the desired code path
         const sdl_path = "C:/SDL2/";
+        const cgm_path = "C:/CGLM/";
         exe.addIncludePath(sdl_path ++ "include");
+        exe.addIncludePath(cgm_path ++ "include");
         exe.addLibraryPath(sdl_path ++ "lib64/");
+        exe.addLibraryPath(cgm_path ++ "lib64/");
         b.installBinFile(sdl_path ++ "lib64/SDL2.dll", "SDL2.dll");
+        b.installBinFile(cgm_path ++ "lib64/CGLM.dll", "CGLM.dll");
     } else {
         std.debug.print("Building in a Linux environment\n", .{});
     }
     exe.linkSystemLibrary("SDL2");
+    exe.linkSystemLibrary("cglm");
+    exe.linkSystemLibrary("glew");
     exe.linkSystemLibrary("c");
 
     // This declares intent for the executable to be installed into the

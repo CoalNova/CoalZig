@@ -1,4 +1,5 @@
-const sys = @import("coalsystem.zig");
+const sys = @import("../coalsystem/coalsystem.zig");
+const wnd = @import("../coaltypes/window.zig");
 
 /// The states available to the various inputs
 /// TODO provide input axis and phase support

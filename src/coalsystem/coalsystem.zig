@@ -1,12 +1,11 @@
-pub const sdl = @cImport({
-    @cInclude("SDL2/SDL.h");
-});
+pub const sdl = @cImport({@cInclude("SDL2/SDL.h");});
+pub const glw = @cImport({@cInclude("GL/glew.h");});
 const std = @import("std");
 const alc = @import("../coalsystem/allocationsystem.zig");
 const evs = @import("../coalsystem/eventsystem.zig");
 const rpt = @import("../coaltypes/report.zig");
-const chk = @import("../coaltypes/chunk.zig");
 const wnd = @import("../coaltypes/window.zig");
+const rnd = @import("../coalsystem/rendersystem.zig");
 
 
 // The current tic of the engine,
@@ -26,6 +25,21 @@ pub const EngineFlag = enum(u16) {
     ef_process_events = 0b0000_0000_0000_1000,
 };
 
+/// GL Initialization flag
+pub var gl_initialized : bool = false;
+
+var max_tex_layers : i32 = 0;
+var max_tex_binds : i32 = 0;
+
+pub fn setMax2DTexArrayLayers(max_tex_array_layers : i32) void 
+{
+    max_tex_layers = max_tex_array_layers;
+}
+pub fn setMaxTexBindingPoints(max_tex_bind_points : i32) void 
+{
+    max_tex_binds = max_tex_bind_points;
+}
+
 /// Starts the engine through systematic initialization of
 /// SDL lib, initialization of memory, and other such processes
 /// TODO system to handle engine component failure better than simply failing out
@@ -39,7 +53,6 @@ pub fn ignite() void {
         setEngineStateFlag(EngineFlag.ef_quitflag);
         return;
     };
-    
 
     wnd.initWindowGroup() catch |err| 
     {
@@ -114,7 +127,18 @@ pub fn getEngineStateFlag(engine_flag : EngineFlag) bool
 //
 pub fn runEngine() void 
 {
+    //update engine tick
     engine_tick +%= 1;
-    sdl.SDL_Delay(15);
+
+    //process events
     evs.processEvents();
+
+    // render
+    for(wnd.getWindowGroup()) |window|
+        if (window.window_type != wnd.WindowType.unused)
+            rnd.renderWindow(&window);
+    
+    // wait, 
+    // TODO replace with proper clock timing
+    sdl.SDL_Delay(15);
 }
