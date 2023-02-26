@@ -9,26 +9,20 @@ pub fn renderWindow(window : *const wnd.Window) void
 {
     switch (window.window_type) {
          wnd.WindowType.hardware=> renderHardware(window),
-         wnd.WindowType.software=> renderSoftware(window),
-         wnd.WindowType.textware=> renderTextware(window),
-         wnd.WindowType.unused=> {},
+         else => {},
     }
 }
     
 
 fn renderHardware(window : *const wnd.Window) void
 {
-
-    _ = zdl.gl.makeCurrent(window.sdl_window, window.gl_context) catch |err| 
-        std.debug.print("{!}\n", .{err});
+    _ = zdl.gl.makeCurrent(window.sdl_window, window.gl_context) catch |err| std.debug.print("{!}\n", .{err});
     zgl.clear(zgl.COLOR_BUFFER_BIT | zgl.DEPTH_BUFFER_BIT);
-    
     var window_size = zdl.Window.getSize(window.sdl_window);
     zgl.viewport(0, 0, window_size[0], window_size[1]);
     
     zdl.gl.swapWindow(window.sdl_window);
     
-    std.debug.print("got here\n",.{});
 }
 
 fn renderSoftware(window : *const wnd.Window) void

@@ -85,7 +85,7 @@ pub fn ignite() void {
         10, [_]i32{ 0, 0, 0, 0 }, engine_tick,
     ));
     var name : [8]u8 = [_]u8{'a'} ** 8; 
-    wnd.createWindow(wnd.WindowType.hardware, &name, .{ .w = 50, .x = 50, .y = 50, .z = 50 }) catch |err|
+    wnd.createWindow(wnd.WindowType.hardware, &name, .{ .w = 640, .x = 480, .y = 320, .z = 240 }) catch |err|
     {
         std.debug.print("Window generation failed: {!}\n", .{err});
         rpt.logReport(rpt.Report.init
@@ -138,12 +138,10 @@ pub fn runEngine() void
 
     // render
     for(wnd.getWindowGroup()) |window|
-        if (window.window_type != wnd.WindowType.unused)
             rnd.renderWindow(&window);
+    
     
     // wait, 
     // TODO replace with proper clock timing
-    zdl.delay(15);
-    std.debug.print("got here, too\n",.{});
-    
+    zdl.delay(15);    
 }

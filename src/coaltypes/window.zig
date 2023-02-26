@@ -8,7 +8,8 @@ const fcs = @import("../coaltypes/focus.zig");
 const rpt = @import("../coaltypes/report.zig");
 const rct = rpt.ReportCatagory;
 
-pub const WindowType = enum { software, hardware, textware, unused };
+pub const WindowType = enum(u8) { 
+    unused = 0x00, software = 0x01, hardware = 0x02, textware = 0x03 };
 
 /// Window container struct that houses the SDL window,
 /// render surfaces, renderer and local mouse position.
@@ -27,6 +28,8 @@ var window_count: u16 = 0;
 pub fn initWindowGroup() !void
 {
     window_group = try alc.gpa_allocator.alloc(Window, 4);
+    for (0..4) |index|
+        window_group[index].window_type = WindowType.unused;
 }
 
 pub fn getWindowGroup() []Window
@@ -48,7 +51,7 @@ pub fn createWindow(window_type: WindowType, window_name: []const u8, rect: pnt.
 
     _ = window_name;
     
-    window.sdl_window = try zdl.Window.create("CoalStar", rect.w, rect.x, rect.y, rect.z, flags);
+    window.sdl_window = try zdl.Window.create("CoalStar", rect.y, rect.z, rect.w, rect.x, flags);
     errdefer 
         zdl.Window.destroy(window.sdl_window);
 
@@ -78,6 +81,9 @@ pub fn createWindow(window_type: WindowType, window_name: []const u8, rect: pnt.
                 try zdl.gl.setSwapInterval(1);
                 sys.setMax2DTexArrayLayers(max_layers);
                 sys.setMaxTexBindingPoints(max_points);
+
+
+
                 sys.gl_initialized = true;
             }
         },
@@ -86,7 +92,6 @@ pub fn createWindow(window_type: WindowType, window_name: []const u8, rect: pnt.
         WindowType.unused => {}
     }
 
-    window_count += 1;
     if (window_count > window_group.len) {
         var new_group = alc.gpa_allocator.alloc(Window, window_group.len * 2) catch |err| {
             std.debug.print("Allocation of increased window group failed: {!}\n", .{err});
@@ -97,6 +102,7 @@ pub fn createWindow(window_type: WindowType, window_name: []const u8, rect: pnt.
         window_group = new_group;
     }
     window_group[window_count] = window;
+    window_count += 1;
 }
 
 pub fn destroyWindow(window : *Window) void
