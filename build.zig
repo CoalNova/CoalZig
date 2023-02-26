@@ -1,4 +1,7 @@
 const std = @import("std");
+const zdl = @import("libs/zsdl/build.zig");
+const zgl = @import("libs/zopengl/build.zig");
+const zmt = @import("libs/zmath/build.zig");
 
 // Although this function looks imperative, note that its job is to
 // declaratively construct a build graph that will be executed by an external
@@ -24,26 +27,22 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
     });
 
-    // OS version check for linking whil developing on seperate platforms
+    // Libs for use in program
+    const zdl_package = zdl.Package.build(b, .{});
+    const zgl_package = zgl.Package.build(b, .{});
+    const zmt_package = zmt.Package.build(b, .{});
+
+    // OS version check for linking while developing on seperate platforms
     if (target.isWindows()) {
         std.debug.print("Building in a Windows environment\n", .{});
-        // change to the desired code path
-        const sdl_path = "C:\\SDL2\\";
-        const glew_path = "C:\\glew\\";
-        exe.addIncludePath(sdl_path ++ "include\\");
-        exe.addIncludePath(glew_path ++ "include\\");
-        exe.addLibraryPath(sdl_path ++ "lib64\\");
-        exe.addLibraryPath(glew_path ++ "lib\\Release\\x64\\");
-        b.installBinFile(sdl_path ++ "lib64\\SDL2.dll", "SDL2.dll");
-        exe.linkSystemLibrary("libglew32");
-        exe.linkSystemLibrary("libglew32mx");
-        exe.linkSystemLibrary("glew32s");
     } else {
         std.debug.print("Building in a Linux environment\n", .{});
-        exe.linkSystemLibrary("glew");
     }
-    exe.linkSystemLibrary("SDL2");
     exe.linkSystemLibrary("c");
+    exe.addModule("zdl", zdl_package.zsdl);
+    exe.addModule("zgl", zgl_package.zopengl);
+    exe.addModule("zmt", zmt_package.zmath);
+    zdl_package.link(exe);
 
     // This declares intent for the executable to be installed into the
     // standard location when the user invokes the "install" step (the default

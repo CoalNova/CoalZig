@@ -1,3 +1,4 @@
+const std = @import("std");
 const sys = @import("coalsystem/coalsystem.zig");
 
 pub fn main() void 
@@ -9,6 +10,7 @@ pub fn main() void
     while(!sys.getEngineStateFlag(sys.EngineFlag.ef_quitflag))
     {
         sys.runEngine();
+        std.debug.print("{d}\n",.{sys.getEngineState()});
     }
 
 }

@@ -1,6 +1,5 @@
-pub const sdl = @cImport({@cInclude("SDL2/SDL.h");});
-pub const glw = @cImport({@cInclude("GL/glew.h");});
 const std = @import("std");
+const zdl = @import("zdl");
 const alc = @import("../coalsystem/allocationsystem.zig");
 const evs = @import("../coalsystem/eventsystem.zig");
 const rpt = @import("../coaltypes/report.zig");
@@ -68,8 +67,9 @@ pub fn ignite() void {
         return;
     };
 
-    if (sdl.SDL_Init(sdl.SDL_INIT_VIDEO) != 0) 
+    zdl.init(zdl.InitFlags.everything) catch |err| 
     {
+        std.debug.print("{!}\n", .{err});
         rpt.logReport(rpt.Report.init
         (
             @enumToInt(rpt.ReportCatagory.level_terminal) | @enumToInt(rpt.ReportCatagory.sdl_system),
@@ -77,7 +77,7 @@ pub fn ignite() void {
         ));
         setEngineStateFlag(EngineFlag.ef_quitflag);
         return;
-    }
+    };
 
     rpt.logReport(rpt.Report.init
     (
@@ -100,7 +100,7 @@ pub fn ignite() void {
 /// TODO actualize quit states for error checking and handling "* stopped responding" on quit is unacceptable
 pub fn douse() void {
     
-    sdl.SDL_Quit();
+    zdl.quit();
 }
 
 /// Retrieves a copy of the current engine tic
@@ -133,6 +133,9 @@ pub fn runEngine() void
     //process events
     evs.processEvents();
 
+    if (evs.matchKeyState(zdl.Scancode.escape, evs.InputStates.down))
+        setEngineStateFlag(EngineFlag.ef_quitflag);
+
     // render
     for(wnd.getWindowGroup()) |window|
         if (window.window_type != wnd.WindowType.unused)
@@ -140,5 +143,7 @@ pub fn runEngine() void
     
     // wait, 
     // TODO replace with proper clock timing
-    sdl.SDL_Delay(15);
+    zdl.delay(15);
+    std.debug.print("got here, too\n",.{});
+    
 }
