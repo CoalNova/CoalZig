@@ -7,6 +7,9 @@ const pnt = @import("../simpletypes/points.zig");
 const fcs = @import("../coaltypes/focus.zig");
 const rpt = @import("../coaltypes/report.zig");
 const rct = rpt.ReportCatagory;
+const stp = @import("../coaltypes/setpiece.zig");
+const msh = @import("../coaltypes/mesh.zig");
+const shd = @import("../coaltypes/shader.zig");
 
 pub const WindowType = enum(u8) { 
     unused = 0x00, software = 0x01, hardware = 0x02, textware = 0x03 };
@@ -20,6 +23,7 @@ pub const Window = struct {
     gl_context: zdl.gl.Context = undefined,
     mouse_position: [2]i32 = undefined,
     focal_point: ?*fcs.Focus = null,
+    setpiece: ?stp.Setpiece = null
 };
 
 var window_group : []Window = undefined;
@@ -86,6 +90,16 @@ pub fn createWindow(window_type: WindowType, window_name: []const u8, rect: pnt.
 
                 sys.gl_initialized = true;
             }
+
+            //
+            //
+            //
+            //
+            //
+            //debug
+            window.setpiece = stp.Setpiece{.mesh = msh.Mesh{ .shader = shd.getShader(255)}};
+
+
         },
         WindowType.software => {},
         WindowType.textware => {},
