@@ -1,5 +1,6 @@
+pub const glw = @cImport({@cInclude("GL/glew.h");});
+pub const sdl = @cImport({@cInclude("SDL2/SDL.h");});
 const std = @import("std");
-const zdl = @import("zdl");
 const alc = @import("../coalsystem/allocationsystem.zig");
 const evs = @import("../coalsystem/eventsystem.zig");
 const rpt = @import("../coaltypes/report.zig");
@@ -27,23 +28,11 @@ pub const EngineFlag = enum(u16) {
 /// GL Initialization flag
 pub var gl_initialized : bool = false;
 
-var max_tex_layers : i32 = 0;
-var max_tex_binds : i32 = 0;
+// hardware env variables
+pub var max_tex_layers : i32 = 0;
+pub var max_tex_binds : i32 = 0;
 
-pub fn setMax2DTexArrayLayers(max_tex_array_layers : i32) void 
-{
-    max_tex_layers = max_tex_array_layers;
-}
-pub fn setMaxTexBindingPoints(max_tex_bind_points : i32) void 
-{
-    max_tex_binds = max_tex_bind_points;
-}
 
-/// Starts the engine through systematic initialization of
-/// SDL lib, initialization of memory, and other such processes
-/// TODO system to handle engine component failure better than simply failing out
-/// TODO get logging system in for engine specific behavior problems
-/// TODO xml, json, or other meta file for initializing engine params
 pub fn ignite() void {
 
     rpt.initLog() catch |err| 
@@ -67,9 +56,8 @@ pub fn ignite() void {
         return;
     };
 
-    zdl.init(zdl.InitFlags.everything) catch |err| 
+    if (sdl.SDL_Init(sdl.SDL_INIT_EVERYTHING) != 0)
     {
-        std.debug.print("{!}\n", .{err});
         rpt.logReport(rpt.Report.init
         (
             @enumToInt(rpt.ReportCatagory.level_terminal) | @enumToInt(rpt.ReportCatagory.sdl_system),
@@ -77,30 +65,20 @@ pub fn ignite() void {
         ));
         setEngineStateFlag(EngineFlag.ef_quitflag);
         return;
-    };
+    }
 
     rpt.logReport(rpt.Report.init
     (
         @enumToInt(rpt.ReportCatagory.level_information) | @enumToInt(rpt.ReportCatagory.sdl_system),
         10, [_]i32{ 0, 0, 0, 0 }, engine_tick,
     ));
-    var name : [8]u8 = [_]u8{'a'} ** 8; 
-    wnd.createWindow(wnd.WindowType.hardware, &name, .{ .w = 640, .x = 480, .y = 320, .z = 240 }) catch |err|
-    {
-        std.debug.print("Window generation failed: {!}\n", .{err});
-        rpt.logReport(rpt.Report.init
-        (
-            @enumToInt(rpt.ReportCatagory.level_error) | @enumToInt(rpt.ReportCatagory.window_system),
-            33,[4]i32{0,0,0,0}, engine_tick
-        ));
-    };
 }
 
 /// Shuts down the engine, deinitializes systems, and frees memory
-/// TODO actualize quit states for error checking and handling "* stopped responding" on quit is unacceptable
 pub fn douse() void {
-    
-    zdl.quit();
+
+    wnd.destroyWindowGroup();
+    sdl.SDL_Quit();
 }
 
 /// Retrieves a copy of the current engine tic
@@ -133,15 +111,15 @@ pub fn runEngine() void
     //process events
     evs.processEvents();
 
-    if (evs.matchKeyState(zdl.Scancode.escape, evs.InputStates.down))
+    if (evs.matchKeyState(sdl.SDL_SCANCODE_ESCAPE, evs.InputStates.down))
         setEngineStateFlag(EngineFlag.ef_quitflag);
 
     // render
     for(wnd.getWindowGroup()) |window|
-            rnd.renderWindow(&window);
+        rnd.renderWindow(&window);
     
     
     // wait, 
     // TODO replace with proper clock timing
-    zdl.delay(15);    
+    sdl.SDL_Delay(15);    
 }

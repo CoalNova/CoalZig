@@ -64,25 +64,38 @@ fn loadShader(shader_program : u8) !Shader
     var frg_shader_id : u32 = zgl.createShader(zgl.FRAGMENT_SHADER);
 
     _ = shader_program;
-    var result : u32 = zgl.FALSE;
-    var log_length : u32 = 0;
+    var result : c_int = zgl.FALSE;
+    var log_length : c_int = 0;
 
     var file = try std.fs.cwd().openFile("./shaders/debug_triangle.vertex.glsl", .{});
     var filetext = try file.readToEndAlloc(alc.gpa_allocator, 65536); 
-    zgl.shaderSource(vrt_shader_id, 1, std.mem.span(@ptrCast([*:0]const u8,filetext)), 0);
+
+
+    var shadertext = try alc.gpa_allocator.alloc(i8, filetext.len + 1);
+
+    for (filetext, 0..) |c, i| 
+    {
+        var g = c;
+        shadertext[i] = @ptrCast(*i8, &g).*;
+    }
+    shadertext[filetext.len] = 0x00;
+    //std.debug.print("{s}\n", .{shadertext});
+
+    std.debug.print("got here\n", .{});
+    zgl.getShaderSource(vrt_shader_id, 1, shadertext.len, @ptrCast([*c]i8,shadertext));
+    //zgl.shaderSource(vrt_shader_id, 1, @ptrCast([*c]const [*c]const i8,@alignCast(@sizeOf([*c]const [*c]const i8),filetext)), 0);
     zgl.compileShader(vrt_shader_id);
     zgl.getProgramiv(vrt_shader_id, zgl.COMPILE_STATUS, &result);
     zgl.getProgramiv(vrt_shader_id, zgl.INFO_LOG_LENGTH, &log_length);
+    file.close();
     alc.gpa_allocator.free(filetext);
-
-
 
     result = zgl.FALSE;
     log_length = 0;
 
     file = try std.fs.cwd().openFile("./shaders/debug_triangle.geometry.glsl", .{});
     filetext = try file.readToEndAlloc(alc.gpa_allocator, 65536); 
-    zgl.shaderSource(geo_shader_id, 1, filetext, 0);
+    zgl.shaderSource(geo_shader_id, 1, @ptrCast([*c]const [*c]const i8,@alignCast(8,filetext)), 0);
     zgl.compileShader(geo_shader_id);
     zgl.getProgramiv(geo_shader_id, zgl.COMPILE_STATUS, &result);
     zgl.getProgramiv(geo_shader_id, zgl.INFO_LOG_LENGTH, &log_length);
@@ -94,14 +107,11 @@ fn loadShader(shader_program : u8) !Shader
 
     file = try std.fs.cwd().openFile("./shaders/debug_triangle.fragment.glsl", .{});
     filetext = try file.readToEndAlloc(alc.gpa_allocator, 65536); 
-    zgl.shaderSource(frg_shader_id, 1, &[]filetext, 0);
+    zgl.shaderSource(frg_shader_id, 1, @ptrCast([*c]const [*c]const i8,@alignCast(8,filetext)), 0);
     zgl.compileShader(frg_shader_id);
     zgl.getProgramiv(frg_shader_id, zgl.COMPILE_STATUS, &result);
     zgl.getProgramiv(frg_shader_id, zgl.INFO_LOG_LENGTH, &log_length);
     alc.gpa_allocator.free(filetext);
-
-    
-
 
     shader.program_name = zgl.createProgram();
     zgl.attachShader(shader.program_name, vrt_shader_id);
@@ -109,5 +119,5 @@ fn loadShader(shader_program : u8) !Shader
     zgl.attachShader(shader.program_name, frg_shader_id);
     zgl.linkProgram(shader.program_name);
 
-
+    return shader;
 }

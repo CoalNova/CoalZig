@@ -19,3 +19,51 @@ pub const Focus = struct {
     active_chunks: [25]pnt.Point3 = [_]pnt.Point3{.{ .x = -1, .y = -1, .z = -1 }} ** 25,
     range: u32 = ((1 << 32) - 1),
 };
+
+pub fn checkFocalPoint(focal_point : Focus, new_position : pst.Position) bool
+{
+    const f = focal_point.position.axial();
+    const a = new_position.axial(); 
+    return (((f.x - a.x) * (f.x - a.x) + (f.y - a.y) * (f.y - a.y)) > focal_point.range * focal_point.range);
+}
+
+pub fn updateFocalPoint(focal_point : Focus) void
+{
+    const focal_index = focal_point.position.index();
+
+    for(&focal_point.active_chunks) |*chunk_index|
+    {
+        if ( std.math.absInt(chunk_index.x - focal_index.x) > 2 or std.math.absInt(chunk_index.y - focal_index.y) > 2)
+        {
+            chk.unloadChunk(chunk_index);
+            chunk_index = pnt.Point3.init(-1 ,-1 ,-1);
+        }   
+        
+    }
+
+    for(-2..2) |y|
+        for (-2..2) |x|
+        {
+            const index = pnt.Point3.init(focal_index.x + x, focal_index.y + y, 0);
+            if (index.x > 0 and index.x < chk.getMapBounds().x and index.y > 0 and index.y < chk.getMapBounds().y)
+            {
+                var contains = false;
+                cnt_blk:for(focal_point.active_chunks) |chunk_index|
+                    if (chunk_index.x == index.x and chunk_index.y == index.y)
+                    {
+                        contains = true;
+                        break:cnt_blk;
+                    };
+                if(!contains)
+                {
+                    plc_blk:for(focal_point.active_chunks) |*chunk_index|
+                        if (chunk_index.x == -1 and chunk_index.y == -1)
+                        {
+                            chunk_index = index;
+                            chk.loadChunk(index);
+                            break:plc_blk;
+                        };
+                }
+            }
+        };
+}

@@ -83,19 +83,9 @@ pub fn logReportInit(cat: u16, mssg: u32, rel_data: [4]i32) void
 }
 
 pub fn printReport(report: Report) void {
-    var i: u16 = 0;
-    while (i < 65536) {
-        if ((report.catagory & i) != 0)
-        {            
-            const stdout_file= std.io.getStdOut().writer();
-            var bw = std.io.bufferedWriter(stdout_file);
-            const stdout = bw.writer();
-            bw.flush() catch |err| std.debug.print("{!}\n", .{err}); // don't forget to flush!
-            stdout.print("NA\n", .{}) catch
-                std.debug.print("Unable to print to stream writer", .{});
-        }
-        i *= 2;
-    }
+
+    _ = report;
+    //TODO
 }
 
 pub fn getMessageString(message_index: u16) []u8 {
@@ -110,8 +100,11 @@ pub fn getMessageString(message_index: u16) []u8 {
         13 => return "SDL Audio Initialization Failed",
         14 => return "SDL Image Initialized Successfully",
         15 => return "SDL Image Initialization Failed",
+        30 => return "Window created successfully",
         31 => return "Window group collection failed",
         33 => return "Window exists outside of group",
+        41 => return "Game Meta Header failed to load",
+        101 => return "Unable to allocate memory",
         else => return "Report text not yet implemented",
     }
     unreachable;

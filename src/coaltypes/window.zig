@@ -1,6 +1,4 @@
 const std = @import("std");
-const zdl = @import("zdl");
-const zgl = @import("zgl");
 const sys = @import("../coalsystem/coalsystem.zig");
 const alc = @import("../coalsystem/allocationsystem.zig");
 const pnt = @import("../simpletypes/points.zig");
@@ -10,6 +8,7 @@ const rct = rpt.ReportCatagory;
 const stp = @import("../coaltypes/setpiece.zig");
 const msh = @import("../coaltypes/mesh.zig");
 const shd = @import("../coaltypes/shader.zig");
+const sdl = sys.sdl;
 
 pub const WindowType = enum(u8) { 
     unused = 0x00, software = 0x01, hardware = 0x02, textware = 0x03 };
@@ -19,95 +18,82 @@ pub const WindowType = enum(u8) {
 /// Will contain GLcontext and relevant GL handles for 3D
 pub const Window = struct {
     window_type: WindowType = WindowType.unused,
-    sdl_window: *zdl.Window = undefined,
-    gl_context: zdl.gl.Context = undefined,
-    mouse_position: [2]i32 = undefined,
+    sdl_window: ?*sdl.SDL_Window = null,
+    gl_context: sdl.SDL_GLContext = undefined,
+    sdl_renderer: ?*sdl.SDL_Renderer = null,
+    window_surface: [*c]sdl.SDL_Surface = null,
+    mouse_position: [2]i32 = [_]i32{0,0},
     focal_point: ?*fcs.Focus = null,
-    setpiece: ?stp.Setpiece = null
 };
 
-var window_group : []Window = undefined;
+var window_group : []?Window = undefined;
 var window_count: u16 = 0;
 
 pub fn initWindowGroup() !void
 {
-    window_group = try alc.gpa_allocator.alloc(Window, 4);
+    window_group = try alc.gpa_allocator.alloc(?Window, 4);
     for (0..4) |index|
-        window_group[index].window_type = WindowType.unused;
+        window_group[index] = null;
 }
 
-pub fn getWindowGroup() []Window
+pub fn getWindowGroup() []?Window
 {
     return window_group;
 }
 
+pub fn getWindowCount() u16
+{
+    return window_count;
+}
+
+const WindowError = error {
+    ErrorWindowNull,
+    ErrorWindowFlag,
+    ErrorGLContext,
+    ErrorSoftRenderer
+};
+
 pub fn createWindow(window_type: WindowType, window_name: []const u8, rect: pnt.Point4) !void {
+
+    //catch eronius request first
+    if (window_type == WindowType.unused)
+        return;
 
     var window: Window = .{};
 
     window.window_type = window_type;
 
-    var flags: zdl.Window.Flags =.{};
-    flags.resizable = true;
+    var flags: sdl.SDL_WindowFlags = sdl.SDL_WINDOW_RESIZABLE;
     
     if (window_type == WindowType.hardware) 
-        flags.opengl = true;
+        flags |= sdl.SDL_WINDOW_OPENGL;
 
-    _ = window_name;
-    
-    window.sdl_window = try zdl.Window.create("CoalStar", rect.y, rect.z, rect.w, rect.x, flags);
+    window.sdl_window = sdl.SDL_CreateWindow(@ptrCast([*c]const u8, window_name), rect.y, rect.z, rect.w, rect.x, flags);
+    if (window.sdl_window == null)
+        return WindowError.ErrorWindowNull;
+
     errdefer 
-        zdl.Window.destroy(window.sdl_window);
+        sdl.SDL_DestroyWindow(window.sdl_window);
 
     switch (window_type) {
-        WindowType.hardware => {
-            window.gl_context = try zdl.gl.createContext(window.sdl_window);
-            
-            if (!sys.gl_initialized)
-            {
-                try zdl.gl.makeCurrent(window.sdl_window, window.gl_context);
-                try zgl.loadCoreProfile(zdl.gl.getProcAddress,3,3);
-                
-                zgl.enable(zgl.FRONT_AND_BACK);
-                zgl.enable(zgl.FILL);
-                zgl.enable(zgl.DEPTH_TEST);
-                zgl.enable(zgl.BLEND);
-                zgl.blendFunc(zgl.SRC_ALPHA, zgl.ONE_MINUS_SRC_ALPHA);
-                zgl.depthFunc(zgl.LESS);
-                zgl.clearColor(0.0, 0.0, 0.0, 1.0);
-
-                var max_layers : i32 = 0;
-                var max_points : i32 = 0;
-
-                zgl.getIntegerv(zgl.MAX_ARRAY_TEXTURE_LAYERS, &max_layers);
-                zgl.getIntegerv(zgl.MAX_TEXTURE_IMAGE_UNITS, &max_layers);
-                
-                try zdl.gl.setSwapInterval(1);
-                sys.setMax2DTexArrayLayers(max_layers);
-                sys.setMaxTexBindingPoints(max_points);
-
-
-
-                sys.gl_initialized = true;
-            }
-
-            //
-            //
-            //
-            //
-            //
-            //debug
-            window.setpiece = stp.Setpiece{.mesh = msh.Mesh{ .shader = shd.getShader(255)}};
-
-
+        WindowType.hardware => 
+        {
+            window.gl_context = sdl.SDL_GL_CreateContext(window.sdl_window);
         },
-        WindowType.software => {},
+        WindowType.software => 
+        {
+            window.sdl_renderer = sdl.SDL_CreateRenderer(window.sdl_window, -1, sdl.SDL_RENDERER_SOFTWARE);
+            if (window.sdl_renderer == null)
+                return WindowError.ErrorSoftRenderer;
+            
+            window.window_surface = sdl.SDL_GetWindowSurface(window.sdl_window);
+        },
         WindowType.textware => {},
         WindowType.unused => {}
     }
 
     if (window_count > window_group.len) {
-        var new_group = alc.gpa_allocator.alloc(Window, window_group.len * 2) catch |err| {
+        var new_group = alc.gpa_allocator.alloc(?Window, window_group.len * 2) catch |err| {
             std.debug.print("Allocation of increased window group failed: {!}\n", .{err});
             return;
         };
@@ -119,21 +105,44 @@ pub fn createWindow(window_type: WindowType, window_name: []const u8, rect: pnt.
     window_count += 1;
 }
 
-pub fn destroyWindow(window : *Window) void
+pub fn destroyWindowGroup() void
 {
-    switch(window.window_type)
+    for(0..window_count) |index|
+    {
+        if (window_group[index] != null)
+        {
+            switch(window_group[index].?.window_type)
+            {
+                WindowType.hardware =>
+                    sdl.SDL_GL_DeleteContext(window_group[index].?.gl_context),
+                WindowType.software =>
+                    sdl.SDL_DestroyRenderer(window_group[index].?.sdl_renderer),
+                WindowType.textware => {},
+                WindowType.unused => {}
+            }
+
+            sdl.SDL_DestroyWindow(window_group[index].?.sdl_window);
+            window_group[index] = null;
+        }
+    }
+    window_count = 0;
+}
+
+pub fn destroyWindow(window : *Window) void
+{   switch(window.window_type)
     {
         WindowType.hardware =>
-        zdl.gl.deleteContext(window.gl_context),
-        WindowType.software => null,
-        WindowType.textware => null,
-        WindowType.unused => null
+            sdl.SDL_GL_DeleteContext(window.gl_context),
+        WindowType.software =>
+            sdl.SDL_DestroyRenderer(window.renderer),
+        WindowType.textware => {},
+        WindowType.unused => {}
     }
 
     if (window.focal_point != null)
         alc.gpa_allocator.free(window.focal_point);
 
-    zdl.destroyWindow(window.sdl_window);
+    sdl.SDL_DestroyWindow(window.sdl_window);
 
     for(window_group, 0..) |w, i|
         if (&w == window)
@@ -141,7 +150,6 @@ pub fn destroyWindow(window : *Window) void
             for(window_group, (i+1)..) |w_, i_|
                 window_group[i_ - 1] = w_;
             window_count -= 1;
-
         };
-    rpt.logReportInit(@enumToInt(rct.level_warning) | @enumToInt(rct.window_system), 33, [4]i32{0,0,0,0});
+    rpt.logReportInit(@enumToInt(rct.level_information) | @enumToInt(rct.window_system), 33, [4]i32{0,0,0,0});
 }

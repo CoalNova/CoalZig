@@ -1,7 +1,9 @@
 const std = @import("std");
-const sys = @import("coalsystem.zig");
-const alc = @import("allocationsystem.zig");
+const sys = @import("../coalsystem/coalsystem.zig");
+const alc = @import("../coalsystem/allocationsystem.zig");
 const chk = @import("../coaltypes/chunk.zig");
+const wnd = @import("../coaltypes/window.zig");
+const rpt = @import("../coaltypes/report.zig");
 const pnt = @import("../simpletypes/points.zig");
 
 const chunk_file_path = "./assets/map/000_000_000.cshf";
@@ -122,18 +124,61 @@ pub fn loadChunkHeightFile(chunk: *chk.Chunk) !*chk.Chunk {
     return chunk;
 }
 
-pub fn loadMetaHeader(filename: []u8, chunk_map_bounds: *pnt.Point3) !void {
-    var file = try std.fs.cwd().openFile(filename, .{});
+pub const MetaHeader = struct
+{
+    map_size : pnt.Point3 = undefined,
+    window_init_types : [8]wnd.WindowType = undefined,
+};
+
+pub fn loadMetaHeader(filename: []u8) MetaHeader {
+    
+    var meta_header : MetaHeader = .{
+        .map_size=.{.x = 8,.y = 8,.z = 4}, 
+        .window_init_types = [_]wnd.WindowType{
+            wnd.WindowType.hardware, 
+            wnd.WindowType.unused, 
+            wnd.WindowType.unused, 
+            wnd.WindowType.unused, 
+            wnd.WindowType.unused, 
+            wnd.WindowType.unused, 
+            wnd.WindowType.unused, 
+            wnd.WindowType.unused, 
+        }
+    };
+    
+    //open file
+    var file = std.fs.cwd().openFile(filename, .{}) catch |err|
+    {
+        //if failed to open, fall back to a default op
+        const cat = rpt.ReportCatagory;
+        std.debug.print("{}\n", .{err});
+        rpt.logReportInit(@enumToInt(cat.level_error) | @enumToInt(cat.file_io), 41, [4]i32{0,0,0,0});
+        return meta_header;
+    };
     defer file.close();
 
-    var data = try file.readToEndAlloc(alc.gpa_allocator, 16384);
+    //read file
+    var data = file.readToEndAlloc(alc.gpa_allocator, 16384) catch |err|
+    {
+        const cat = rpt.ReportCatagory;
+        std.debug.print("{}\n", .{err});
+        rpt.logReportInit(@enumToInt(cat.level_error) | @enumToInt(cat.memory_allocation), 101, [4]i32{0,0,0,0});
+        return meta_header;
+    };
     defer alc.gpa_allocator.free(data);
-    var lines = std.mem.split(u8, data);
-    chunk_map_bounds.init(0, 0, 0);
+    
+    var loaded_header : MetaHeader = meta_header;
+
+    //parse data
+    var lines = std.mem.split(u8, data, "|");
+    loaded_header.map_size = pnt.Point3.init(0, 0, 0);
     for (lines.buffer) |x|
-        chunk_map_bounds.x = chunk_map_bounds.x * 10 + (x - 48);
+        loaded_header.map_size.x = loaded_header.map_size.x * 10 + (x - 48);
     for (lines.buffer) |y|
-        chunk_map_bounds.y = chunk_map_bounds.y * 10 + (y - 48);
+        loaded_header.map_size.y = loaded_header.map_size.y * 10 + (y - 48);
     for (lines.buffer) |z|
-        chunk_map_bounds.z = chunk_map_bounds.z * 10 + (z - 48);
+        loaded_header.map_size.z = loaded_header.map_size.z * 10 + (z - 48);
+
+    meta_header = loaded_header;
+    return meta_header;
 }
