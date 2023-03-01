@@ -23,7 +23,7 @@ pub const Window = struct {
     sdl_renderer: ?*sdl.SDL_Renderer = null,
     window_surface: [*c]sdl.SDL_Surface = null,
     mouse_position: [2]i32 = [_]i32{0,0},
-    focal_point: ?*fcs.Focus = null,
+    focal_point: fcs.Focus = .{},
 };
 
 var window_group : []?Window = undefined;
@@ -34,6 +34,18 @@ pub fn initWindowGroup() !void
     window_group = try alc.gpa_allocator.alloc(?Window, 4);
     for (0..4) |index|
         window_group[index] = null;
+}
+
+//TODO windowID? 
+pub fn getWindow(window_type : WindowType) ?Window
+{
+    for(window_group) |window|
+    {
+        if (window != null)
+            if (window.?.window_type == window_type)
+                return window;
+    }
+    return null;
 }
 
 pub fn getWindowGroup() []?Window
@@ -53,11 +65,11 @@ const WindowError = error {
     ErrorSoftRenderer
 };
 
-pub fn createWindow(window_type: WindowType, window_name: []const u8, rect: pnt.Point4) !void {
+pub fn createWindow(window_type: WindowType, window_name: []const u8, rect: pnt.Point4) ?Window {
 
     //catch eronius request first
     if (window_type == WindowType.unused)
-        return;
+        return null;
 
     var window: Window = .{};
 
@@ -70,7 +82,7 @@ pub fn createWindow(window_type: WindowType, window_name: []const u8, rect: pnt.
 
     window.sdl_window = sdl.SDL_CreateWindow(@ptrCast([*c]const u8, window_name), rect.y, rect.z, rect.w, rect.x, flags);
     if (window.sdl_window == null)
-        return WindowError.ErrorWindowNull;
+        return null;
 
     errdefer 
         sdl.SDL_DestroyWindow(window.sdl_window);
@@ -84,7 +96,7 @@ pub fn createWindow(window_type: WindowType, window_name: []const u8, rect: pnt.
         {
             window.sdl_renderer = sdl.SDL_CreateRenderer(window.sdl_window, -1, sdl.SDL_RENDERER_SOFTWARE);
             if (window.sdl_renderer == null)
-                return WindowError.ErrorSoftRenderer;
+                return null;
             
             window.window_surface = sdl.SDL_GetWindowSurface(window.sdl_window);
         },
@@ -95,7 +107,7 @@ pub fn createWindow(window_type: WindowType, window_name: []const u8, rect: pnt.
     if (window_count > window_group.len) {
         var new_group = alc.gpa_allocator.alloc(?Window, window_group.len * 2) catch |err| {
             std.debug.print("Allocation of increased window group failed: {!}\n", .{err});
-            return;
+            return null;
         };
         for (window_group, 0..) |w, i| new_group[i] = w;
         alc.gpa_allocator.free(window_group);
@@ -103,6 +115,8 @@ pub fn createWindow(window_type: WindowType, window_name: []const u8, rect: pnt.
     }
     window_group[window_count] = window;
     window_count += 1;
+
+    return window;
 }
 
 pub fn destroyWindowGroup() void

@@ -27,25 +27,30 @@ pub fn checkFocalPoint(focal_point : Focus, new_position : pst.Position) bool
     return (((f.x - a.x) * (f.x - a.x) + (f.y - a.y) * (f.y - a.y)) > focal_point.range * focal_point.range);
 }
 
-pub fn updateFocalPoint(focal_point : Focus) void
+pub fn updateFocalPoint(focal_point : *Focus) void
 {
+
+
     const focal_index = focal_point.position.index();
 
     for(&focal_point.active_chunks) |*chunk_index|
     {
-        if ( std.math.absInt(chunk_index.x - focal_index.x) > 2 or std.math.absInt(chunk_index.y - focal_index.y) > 2)
+        if ((chunk_index.x - focal_index.x) * (chunk_index.x - focal_index.x) > 4 or 
+            (chunk_index.y - focal_index.y) * (chunk_index.y - focal_index.y) > 4)
         {
-            chk.unloadChunk(chunk_index);
-            chunk_index = pnt.Point3.init(-1 ,-1 ,-1);
+            chk.unloadChunk(chunk_index.*);
+            chunk_index.x = -1;
+            chunk_index.y = -1;
+            chunk_index.z = -1;
         }   
         
     }
 
-    for(-2..2) |y|
-        for (-2..2) |x|
+    for(0..5) |y|
+        for (0..5) |x|
         {
-            const index = pnt.Point3.init(focal_index.x + x, focal_index.y + y, 0);
-            if (index.x > 0 and index.x < chk.getMapBounds().x and index.y > 0 and index.y < chk.getMapBounds().y)
+            const index = pnt.Point3.init(focal_index.x + @intCast(i32, x) - 2, focal_index.y + @intCast(i32, y) - 2, 0);
+            if (index.x >= 0 and index.x < chk.getMapBounds().x and index.y >= 0 and index.y < chk.getMapBounds().y)
             {
                 var contains = false;
                 cnt_blk:for(focal_point.active_chunks) |chunk_index|
@@ -56,10 +61,12 @@ pub fn updateFocalPoint(focal_point : Focus) void
                     };
                 if(!contains)
                 {
-                    plc_blk:for(focal_point.active_chunks) |*chunk_index|
+                    plc_blk:for(&focal_point.active_chunks) |*chunk_index|
                         if (chunk_index.x == -1 and chunk_index.y == -1)
                         {
-                            chunk_index = index;
+                            chunk_index.x = index.x;
+                            chunk_index.y = index.y;
+                            chunk_index.z = index.z;
                             chk.loadChunk(index);
                             break:plc_blk;
                         };

@@ -3,6 +3,7 @@ const alc = @import("../coalsystem/allocationsystem.zig");
 const pst = @import("../coaltypes/position.zig");
 const fcs = @import("../coaltypes/focus.zig");
 const stp = @import("../coaltypes/setpiece.zig");
+const ogd = @import("../simpletypes/ogd.zig");
 
 /// The container struct for world chunk
 /// will contain references to create/destroy/move setpieces and objects
@@ -11,23 +12,25 @@ pub const Chunk = struct {
     index: pst.pnt.Point3 = .{ .x = 0, .y = 0, .z = 0 },
     heights: ?[]u16 = null,
     height_mod: u8 = 0,
-    setpieces: ?[]stp.Setpiece = null,
+    setpieces: []stp.Setpiece = undefined,
     loaded: bool = false,
 };
 
 /// Chunk map
-var chunk_map: *Chunk = undefined;
+var chunk_map: []Chunk = undefined;
 var map_bounds: pst.pnt.Point3 = .{ .x = 0, .y = 0, .z = 0 };
 
 pub fn initializeChunkMap(allocator: std.mem.Allocator, bounds: pst.pnt.Point3) !void {
     map_bounds = bounds;
-    chunk_map = try allocator.alloc(Chunk, bounds.x * bounds.y);
+    chunk_map = try allocator.alloc(Chunk, @intCast(usize, bounds.x * bounds.y));
 }
 
 pub fn getMapBounds() pst.pnt.Point3
 {
     return map_bounds;
 }
+
+const ChunkError = error{ OutofBoundsChunkMapAccess };
 
 /// Returns Chunk at provided Point3 index
 ///     or an Out of Bounds Chunk Access error if the index is so
@@ -38,9 +41,9 @@ pub fn getChunk(index: pst.pnt.Point3) !*Chunk {
     if (index.x >= map_bounds.x or index.x < 0 or
         index.y >= map_bounds.y or index.y < 0)
     {
-        return error{OutofBoundsChunkMapAccess};
+        return ChunkError.OutofBoundsChunkMapAccess;
     }
-    chunk = try &chunk_map[index.x + index.y * map_bounds.x];
+    chunk = &chunk_map[@intCast(usize,index.x + index.y * map_bounds.x)];
     return chunk;
 }
 
@@ -54,15 +57,19 @@ pub fn loadChunk(chunk_index : pst.pnt.Point3) void
 
     //TODO use CAT
     chunk.height_mod = 0;
-    chunk.heights = alc.gpa_allocator(u16, 512*512) catch |err|
+    chunk.heights = alc.gpa_allocator.alloc(u16, 512*512) catch |err|
     {
         std.debug.print("{}\n", .{err});
         return;
     };
 
-    chunk.setpieces = null;
-
-
+    //TODO handle setpiece loading 
+    chunk.setpieces = alc.gpa_allocator.alloc(stp.Setpiece, 32) catch |err|
+    {
+        std.debug.print("{}\n", .{err});
+        return;
+    };
+        
     chunk.loaded = true;
 }
 
@@ -74,11 +81,11 @@ pub fn unloadChunk(chunk_index : pst.pnt.Point3) void
         return;
     };
 
-    alc.gpa_allocator.free(chunk.heights);
+    alc.gpa_allocator.free(chunk.*.heights.?);
 
     chunk.height_mod = 0;
 
-    chunk.setpieces = null;
+    chunk.setpieces = undefined;
 
     chunk.loaded = false;
 }

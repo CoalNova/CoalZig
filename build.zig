@@ -1,7 +1,4 @@
 const std = @import("std");
-const zdl = @import("libs/zsdl/build.zig");
-const zgl = @import("libs/zopengl/build.zig");
-const zmt = @import("libs/zmath/build.zig");
 
 // Although this function looks imperative, note that its job is to
 // declaratively construct a build graph that will be executed by an external

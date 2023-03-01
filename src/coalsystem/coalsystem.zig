@@ -6,6 +6,11 @@ const evs = @import("../coalsystem/eventsystem.zig");
 const rpt = @import("../coaltypes/report.zig");
 const wnd = @import("../coaltypes/window.zig");
 const rnd = @import("../coalsystem/rendersystem.zig");
+const fio = @import("../coalsystem/fileiosystem.zig");
+const pnt = @import("../simpletypes/points.zig");
+const fcs = @import("../coaltypes/focus.zig");
+const chk = @import("../coaltypes/chunk.zig");
+const gls = @import("../coalsystem/glsystem.zig");
 
 
 // The current tic of the engine,
@@ -23,10 +28,9 @@ pub const EngineFlag = enum(u16) {
     ef_term_option = 0b0000_0000_0000_0010,
     ef_execute_render = 0b0000_0000_0000_0100,
     ef_process_events = 0b0000_0000_0000_1000,
+    ef_gl_initialized = 0b0000_0000_0001_0000
 };
 
-/// GL Initialization flag
-pub var gl_initialized : bool = false;
 
 // hardware env variables
 pub var max_tex_layers : i32 = 0;
@@ -65,6 +69,49 @@ pub fn ignite() void {
         ));
         setEngineStateFlag(EngineFlag.ef_quitflag);
         return;
+    }
+
+
+    // read game meta header 
+    var meta_header : fio.MetaHeader = fio.loadMetaHeader("");
+
+    chk.initializeChunkMap(alc.gpa_allocator, pnt.Point3.init(1,1,1)) catch |err|
+    {
+        std.debug.print("map initialization failed {!}\n", .{err});
+        setEngineStateFlag(EngineFlag.ef_quitflag);
+        return;
+    };
+
+    //construct windows
+    win_blk:for(meta_header.window_init_types) |window_type|
+    {
+        var window = wnd.createWindow(window_type, "CoalStar", pnt.Point4.init( 640, 480, 320, 240));
+        if (window == null)
+        {
+            //window creation failed
+            continue : win_blk;
+        }
+
+        if (window_type == wnd.WindowType.hardware and !getEngineStateFlag(EngineFlag.ef_quitflag))
+        {
+        
+            gli_blk:
+            {
+                if (sdl.SDL_GL_MakeCurrent(window.?.sdl_window, window.?.gl_context) != 0)
+                    break :gli_blk;
+                gls.initalizeGL() catch
+                    break : gli_blk;
+                
+                setEngineStateFlag(EngineFlag.ef_gl_initialized);
+            }
+            
+        }
+
+        if (window_type == wnd.WindowType.hardware or wnd.WindowType.software == window_type)
+        {
+            fcs.updateFocalPoint(&window.?.focal_point);
+        }
+
     }
 
     rpt.logReport(rpt.Report.init
