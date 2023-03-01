@@ -28,14 +28,19 @@ pub fn build(b: *std.Build) void {
     // OS version check for linking while developing on seperate platforms
     if (target.isWindows()) {
         std.debug.print("Building in a Windows environment\n", .{});
-        exe.addIncludePath("libs\\SDL\\x86_64-windows-gnu\\include");
-        exe.addLibraryPath("libs\\SDL\\x86_64-windows-gnu\\lib");
+        exe.addIncludePath("libs\\SDL\\include");
+        exe.addLibraryPath("libs\\SDL\\lib");
+        b.installBinFile("libs\\SDL\\bin\\SDL2.dll", "SDL2.dll");
+        exe.addIncludePath("libs\\glew\\include");
+        exe.addLibraryPath("libs\\glew\\lib");
+        b.installBinFile("libs\\glew\\bin\\glew32.dll", "glew32.dll");
+        exe.linkSystemLibrary("opengl32");
     } else {
         std.debug.print("Building in a Linux environment\n", .{});
+        exe.linkSystemLibrary("glew");
     }
     exe.linkSystemLibrary("c");
     exe.linkSystemLibrary("SDL2");
-    exe.linkSystemLibrary("glew");
 
     exe.install();
 
