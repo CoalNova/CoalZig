@@ -1,4 +1,5 @@
 const std = @import("std");
+const zmt = @import("zmt");
 const alc = @import("../coalsystem/allocationsystem.zig");
 const pst = @import("../coaltypes/position.zig");
 const fcs = @import("../coaltypes/focus.zig");
@@ -103,9 +104,11 @@ pub fn updateMeshIBO(chunk: *Chunk, focal_point: fcs.Focus) ?[]u8 {
 
 // this is where the fun begins
 pub fn getHeight(position : pst.Position) f32 {
-    //check if requested position is even whole and return
+    
+    //check if requested position is rounded
     if (position.isX_Rounded() and position.isY_Rounded())
     {
+        //if even on both axis then dig in and return value at index (if chunk invalid/unloaded return 0.0) 
         if ((position.x & (1 << 24)) == 0 and (position.y & (1 << 24)) == 0)
         {
             const chunk = getChunk(position.index()) catch
@@ -115,7 +118,52 @@ pub fn getHeight(position : pst.Position) f32 {
                 return 0.0;
 
             return @as(f32, chunk.heights[(position.x >> 1) + (position.y >> 1) * 512]) * 0.1 + @as(f32, (chunk.height_mod * 1024)) ; 
+        }
+        else if ((position.y & (1 << 24)) == 0)
+        {
+            //if x is the odd one
+            const p_a = position.addAxial(.{.x = 1, .y = 0, .z = 0});
+            const p_b = position.addAxial(.{.x = -1, .y = 0, .z = 0});
+            return (getHeight(p_a) + getHeight(p_b)) * 0.5;
         } 
+        else if ((position.x & (1 << 24)) == 0)
+        {
+            //if y is the odd one
+            const p_a = position.addAxial(.{.x = 0, .y = 1, .z = 0});
+            const p_b = position.addAxial(.{.x = 0, .y = -1, .z = 0});
+            return (getHeight(p_a) + getHeight(p_b)) * 0.5;
+        }
+        else 
+        {
+            //if both are odd
+            const p_a = position.addAxial(.{.x = -1, .y = 1, .z = 0});
+            const p_b = position.addAxial(.{.x = 1, .y = -1, .z = 0});
+            return (getHeight(p_a) + getHeight(p_b)) * 0.5;
+        }
     }    
-    return 0.0;
+
+    //else, break out the ray/plane intercept
+    const p_1 : pst.Position = getHeight(position.round());
+    const p_3 : pst.Position = getHeight(position.round().addAxial(.{.x = 1, .y = 1, .z = 0}));
+    const p_2 : pst.Position = if(position.xMinorGreater())
+            getHeight(position.round().addAxial(.{.x = 1, .y = 0, .z = 0}))
+        else
+            getHeight(position.round().addAxial(.{.x = 0, .y = 1, .z = 0}));
+
+    //normalish the values
+    var v_a = pst.vct.Vector3.init(0, 0, 0).simd();
+    var v_b = (pst.Position{.x = p_2.x - p_1.x, .y = p_2.y - p_1.y, .z = p_2.z - p_1.z}).axial().simd();
+    var v_c = (pst.Position{.x = p_3.x - p_1.x, .y = p_3.y - p_1.y, .z = p_3.z - p_1.z}).axial().simd();
+
+    var normal : @Vector(3, f32) = zmt.cross3(v_b - v_a, v_b - v_c);
+
+    const direction = pst.vct.Vector3.init(0.0, 0.0, -1.0).simd();
+    const origin = pst.vct.Vector3.init(0.0, 0.0, 1.0).simd();
+
+    const denom : f32 = zmt.dot3(normal, direction);
+    if (zmt.abs(denom) == 0.0) //in cases of negative zero
+        return p_1.axial().z; // better to float(burn out) than to drop to 0(fade away)
+    
+    var height = zmt.dot3((v_a - origin), normal) / denom;
+    return p_1.axial().z + height;
 }

@@ -1,7 +1,10 @@
 pub const pnt = @import("../simpletypes/points.zig");
 pub const vct = @import("../simpletypes/vectors.zig");
 
-const AxialDivisor : f64 = 1.0/28.0;
+const AxialDivisor : f32 = 1.0 / (1 << 24);
+const AxialFilter : i64 = ((1 << 34) - 1);
+const MajorFilter : i64 = (((1 << 39) - 1) << 24);
+const MinorFilter : i64 = ((1 << 24) - 1);
 
 /// Worldspace position, contains the dimensional index and the intradimensional axial coordinates
 /// stores position as a packed signed 64 bit integers, per axis the breakdown of packed data is:
@@ -22,11 +25,29 @@ pub const Position = struct {
     pub inline fn isY_Rounded(self : Position) bool {return (self.y & ((1<<24) - 1)) == 0;}
     pub inline fn isZ_Rounded(self : Position) bool {return (self.z & ((1<<24) - 1)) == 0;}
 
+    pub inline fn round(self : Position) Position
+    {
+        var p = .{};
+        p.x = self.x ^ (self.x & MinorFilter);
+        p.y = self.y ^ (self.y & MinorFilter);
+        p.z = self.z ^ (self.z & MinorFilter);
+        return p;
+    }
+
+    pub inline fn addAxial(self : Position, _axial : vct.Vector3) Position
+    {
+        var p : Position = self;
+        p.x += @floatToInt(i64, @intToFloat(f32, _axial.x) / AxialDivisor);
+        p.y += @floatToInt(i64, @intToFloat(f32, _axial.y) / AxialDivisor);
+        p.z += @floatToInt(i64, @intToFloat(f32, _axial.z) / AxialDivisor);
+        return p;
+    }
+
     pub inline fn axial(self: Position) vct.Vector3 {
         return .{
-            .x = @intToFloat(f32, (self.x & ((1 << 28) - 1))) / @intToFloat(f32, (1 << 18)),
-            .y = @intToFloat(f32, (self.y & ((1 << 28) - 1))) / @intToFloat(f32, (1 << 18)),
-            .z = @intToFloat(f32, (self.z & ((1 << 28) - 1))) / @intToFloat(f32, (1 << 18)),
+            .x = @intToFloat(f32, (self.x & AxialFilter)) / AxialDivisor,
+            .y = @intToFloat(f32, (self.y & AxialFilter)) / AxialDivisor,
+            .z = @intToFloat(f32, (self.z & AxialFilter)) / AxialDivisor,
         };
     }
 
@@ -40,5 +61,10 @@ pub const Position = struct {
         z += @floatToInt(i64, _axial.z * @intToFloat(f32, (1 << 18)));
 
         return .{ .x = x, .y = y, .z = z };
+    }
+
+    pub inline fn xMinorGreater(self : Position) bool
+    {
+        return (self.x & MinorFilter) > (self.y & MinorFilter);
     }
 };
