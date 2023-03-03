@@ -7,6 +7,7 @@ const rpt = @import("../coaltypes/report.zig");
 const pnt = @import("../simpletypes/points.zig");
 
 const chunk_file_path = "./assets/map/000_000_000.cshf";
+const chunk_filename : []u8 = "./assets/world//00000000._hf";
 
 pub const BMP = struct { px: []u8, width: u32, height: u32, color_profile: u32 };
 
@@ -50,78 +51,59 @@ pub fn loadBMP() !BMP {
     return bmp;
 }
 
-pub fn getChunkFileName(chunk: *chk.Chunk, filename: []u8) void {
-    for (chunk_file_path, 0..) |c, i| {
-        filename[i] = c;
-    }
-    filename[13] = @intCast(u8, @divFloor(chunk.index.x, 100) + 48);
-    filename[14] = @intCast(u8, @mod(@divFloor(chunk.index.x, 10), 10)) + 48;
-    filename[15] = @intCast(u8, @mod(chunk.index.x, 10)) + 48;
+/// Returns the path and filename of chunk of provided world and index
+/// or else returns allocator error
+/// TODO verify useage on older windows systems: "\\" vs "/"
+fn getChunkFilename(allocator : std.mem.Allocator, index : pnt.Point3, world_name : []u8) ![]u8
+{
+    var filename : []u8 = try allocator.alloc(u8, chunk_filename.len + world_name.len);
+    for (0..16) |i| filename[i] = chunk_filename[i];
+    for(0..world_name.len) |i| filename[i + 16] = world_name[i];
 
-    filename[17] = @intCast(u8, @divFloor(chunk.index.y, 100) + 48);
-    filename[18] = @intCast(u8, @mod(@divFloor(chunk.index.y, 10), 10)) + 48;
-    filename[19] = @intCast(u8, @mod(chunk.index.y, 10)) + 48;
+    filename[17 + world_name.len] = '/';
 
-    filename[21] = @intCast(u8, @divFloor(chunk.index.z, 100) + 48);
-    filename[22] = @intCast(u8, @mod(@divFloor(chunk.index.z, 10), 10)) + 48;
-    filename[23] = @intCast(u8, @mod(chunk.index.z, 10)) + 48;
+    filename[17 + world_name.len] = index.x / 1000 + 48;
+    filename[18 + world_name.len] = (index.x % 1000) / 100;
+    filename[19 + world_name.len] = (index.x % 100) / 10;
+    filename[20 + world_name.len] = index.x % 10; 
+
+    filename[21 + world_name.len] = index.y / 1000 + 48;
+    filename[22 + world_name.len] = (index.y % 1000) / 100;
+    filename[23 + world_name.len] = (index.y % 100) / 10;
+    filename[24 + world_name.len] = index.y % 10; 
+
+    filename[25 + world_name.len] = '.';
+    filename[26 + world_name.len] = '_';
+    filename[27 + world_name.len] = 'h';
+    filename[28 + world_name.len] = 'f';
+
+    return filename;
 }
 
-pub fn saveChunkHeightFile(chunk: *chk.Chunk) !*chk.Chunk {
-
-    // TODO internalize allocation and destruction into getname
-    var filename: []u8 = try alc.gpa_allocator.alloc(u8, chunk_file_path.len);
+pub fn saveChunkHeights(heights : []u16, height_mod : u8, index : pnt.Point3, world_name : []u8) !void
+{
+    const filename = try getChunkFilename(alc.gpa_allocator, index, world_name);
     defer alc.gpa_allocator.free(filename);
 
-    getChunkFileName(chunk, filename);
-    var file = try std.fs.cwd().createFile(filename, .{});
+    var file = try std.fs.cwd().createFile(filename, std.fs.File.CreateFlags{
+        .read = false, 
+        .truncate = false, 
+        .exclusive = false, 
+        .lock = .None, 
+        .lock_nonblocking = false,
+        });
     defer file.close();
 
-    _ = try file.write(&@bitCast([@sizeOf(i32)]u8, chunk.index.x));
-    _ = try file.write(&@bitCast([@sizeOf(i32)]u8, chunk.index.y));
-    _ = try file.write(&@bitCast([@sizeOf(i32)]u8, chunk.index.z));
-    _ = try file.write(&@bitCast([1]u8, chunk.height_mod));
-    const heights = std.mem.sliceAsBytes(chunk.heights[0..chunk.heights.len]);
-    _ = try file.write(heights);
+    var writer = file.writer();
 
-    return chunk;
-}
+    //for now only supports 2d chunk layouts
+    writer.writeIntLittle(i32, index.x);
+    writer.writeIntLittle(i32, index.y);
+    //TODO bit twiddle to compress heights
+    //TODO also compress heights
+    writer.write(height_mod);
+    for(heights) |height| file.writer().writeIntLittle(u16, height);
 
-pub fn loadChunkHeightFile(chunk: *chk.Chunk) !*chk.Chunk {
-    var filename: []u8 = try alc.gpa_allocator.alloc(u8, chunk_file_path.len);
-    defer alc.gpa_allocator.free(filename);
-
-    getChunkFileName(chunk, filename);
-    var file = try std.fs.cwd().openFile(filename, .{});
-    defer file.close();
-
-    var index: pnt.Point3 = pnt.Point3.init(0, 0, 0);
-    var temp_array = [_]u8{0} ** 4;
-
-    _ = try file.read(&temp_array);
-    index.x = @bitCast(i32, temp_array);
-    _ = try file.read(&temp_array);
-    index.y = @bitCast(i32, temp_array);
-    _ = try file.read(&temp_array);
-    index.y = @bitCast(i32, temp_array);
-
-    if (index.x != chunk.index.x or index.y != chunk.index.z) {
-        std.debug.print("Temp debug error, heightfile mismatch for ({d}, {d}, {d})\n", .{ chunk.index.x, chunk.index.y, chunk.index.z });
-        return chunk;
-    }
-    var other_temp = [_]u8{0};
-    _ = try file.read(&other_temp);
-
-    var temp_heights = try alc.gpa_allocator.alloc(u8, 512 * 512 * 2);
-    defer alc.gpa_allocator.free(temp_heights);
-    chunk.heights = try alc.gpa_allocator.alloc(u16, 512 * 512);
-
-    _ = try file.read(temp_heights);
-
-    for (chunk.heights, 0..) |h, i| chunk.heights[i] = h * 0;
-    for (temp_heights, 0..) |h, i| chunk.heights[i >> 1] += @intCast(u16, h) << 8 * @intCast(u4, (i & 1));
-
-    return chunk;
 }
 
 pub const MetaHeader = struct
