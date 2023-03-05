@@ -54,35 +54,35 @@ pub fn loadBMP() !BMP {
 /// Returns the path and filename of chunk of provided world and index
 /// or else returns allocator error
 /// TODO verify useage on older windows systems: "\\" vs "/"
-fn getChunkFilename(allocator : std.mem.Allocator, index : pnt.Point3, world_name : []u8) ![]u8
+fn getChunkFilename(allocator : std.mem.Allocator, index : pnt.Point3, map_name : []u8) ![]u8
 {
-    var filename : []u8 = try allocator.alloc(u8, chunk_filename.len + world_name.len);
+    var filename : []u8 = try allocator.alloc(u8, chunk_filename.len + map_name.len);
     for (0..16) |i| filename[i] = chunk_filename[i];
-    for(0..world_name.len) |i| filename[i + 16] = world_name[i];
+    for(0..map_name.len) |i| filename[i + 16] = map_name[i];
 
-    filename[17 + world_name.len] = '/';
+    filename[17 + map_name.len] = '/';
 
-    filename[17 + world_name.len] = index.x / 1000 + 48;
-    filename[18 + world_name.len] = (index.x % 1000) / 100;
-    filename[19 + world_name.len] = (index.x % 100) / 10;
-    filename[20 + world_name.len] = index.x % 10; 
+    filename[17 + map_name.len] = index.x / 1000 + 48;
+    filename[18 + map_name.len] = (index.x % 1000) / 100 + 48;
+    filename[19 + map_name.len] = (index.x % 100) / 10 + 48;
+    filename[20 + map_name.len] = index.x % 10 + 48; 
 
-    filename[21 + world_name.len] = index.y / 1000 + 48;
-    filename[22 + world_name.len] = (index.y % 1000) / 100;
-    filename[23 + world_name.len] = (index.y % 100) / 10;
-    filename[24 + world_name.len] = index.y % 10; 
+    filename[21 + map_name.len] = index.y / 1000 + 48;
+    filename[22 + map_name.len] = (index.y % 1000) / 100 + 48;
+    filename[23 + map_name.len] = (index.y % 100) / 10 + 48;
+    filename[24 + map_name.len] = index.y % 10 + 48; 
 
-    filename[25 + world_name.len] = '.';
-    filename[26 + world_name.len] = '_';
-    filename[27 + world_name.len] = 'h';
-    filename[28 + world_name.len] = 'f';
+    filename[25 + map_name.len] = '.';
+    filename[26 + map_name.len] = '_';
+    filename[27 + map_name.len] = 'h';
+    filename[28 + map_name.len] = 'f';
 
     return filename;
 }
 
-pub fn saveChunkHeights(heights : []u16, height_mod : u8, index : pnt.Point3, world_name : []u8) !void
+pub fn saveChunkHeights(heights : []u16, height_mod : u8, index : pnt.Point3, map_name : []u8) !void
 {
-    const filename = try getChunkFilename(alc.gpa_allocator, index, world_name);
+    const filename = try getChunkFilename(alc.gpa_allocator, index, map_name);
     defer alc.gpa_allocator.free(filename);
 
     var file = try std.fs.cwd().createFile(filename, std.fs.File.CreateFlags{

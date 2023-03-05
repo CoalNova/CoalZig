@@ -5,7 +5,11 @@ const alc = @import("../coalsystem/allocationsystem.zig");
 pub const Mesh = struct {
     id : u32 = 0,
     shader : *shd.Shader = undefined,
-    subscriber : u32 = 0
+    subscribers : u32 = 0,
+    vao : u32 = 0,
+    vbo : u32 = 0,
+    ibo : u32 = 0,
+    vio : u32 = 0
 };
 
 var meshes : []Mesh = undefined;

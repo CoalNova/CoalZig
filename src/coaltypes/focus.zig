@@ -29,8 +29,6 @@ pub fn checkFocalPoint(focal_point : Focus, new_position : pst.Position) bool
 
 pub fn updateFocalPoint(focal_point : *Focus) void
 {
-
-
     const focal_index = focal_point.position.index();
 
     for(&focal_point.active_chunks) |*chunk_index|

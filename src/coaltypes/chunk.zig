@@ -5,6 +5,7 @@ const pst = @import("../coaltypes/position.zig");
 const fcs = @import("../coaltypes/focus.zig");
 const stp = @import("../coaltypes/setpiece.zig");
 const ogd = @import("../simpletypes/ogd.zig");
+const msh = @import("../coaltypes/mesh.zig");
 
 /// The container struct for world chunk
 /// will contain references to create/destroy/move setpieces and objects
@@ -14,6 +15,7 @@ pub const Chunk = struct {
     heights: ?[]u16 = null,
     height_mod: u8 = 0,
     setpieces: []stp.Setpiece = undefined,
+    mesh : *msh.Mesh = undefined,
     loaded: bool = false,
 };
 
@@ -91,12 +93,15 @@ pub fn unloadChunk(chunk_index : pst.pnt.Point3) void
     chunk.loaded = false;
 }
 
-pub fn constructBaseMesh(chunk: *Chunk) ?[]u8 {
-    _ = chunk;
+pub fn constructBaseMesh(chunk: *Chunk) void {
+    
+    chunk.mesh = msh.Mesh{};
+    
+    
     return null;
 }
 
-pub fn updateMeshIBO(chunk: *Chunk, focal_point: fcs.Focus) ?[]u8 {
+pub fn updateMeshIBO(chunk: *Chunk, focal_point: fcs.Focus) void {
     _ = chunk;
     _ = focal_point;
     return null;
