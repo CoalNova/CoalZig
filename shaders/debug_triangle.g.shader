@@ -1,27 +1,24 @@
 ///DEBUG TRIANGLE GEMOETRY SHADER
+#version 330 core
 
-layout(points);
+layout(points) in;
 layout(triangle_strip,max_vertices=36)out;
 
-out vec4 fpos
+in vec4 gPos[];
+out vec4 fpos;
 
-vec3 verts[3]=vec3[]
-(
-    vec4(-.8,-.8,.5,1),
-    vec4(.8,-.8,.5,1),
-    vec4(0.,.8,.5,1)
-);
 
 void main()
 {
-    fpos=verts[0];
+    fpos=gPos[0];
     gl_Position=fpos;
     EmitVertex();
-    fpos=verts[1];
+    fpos=gPos[1];
     gl_Position=fpos;
     EmitVertex();
-    fpos=verts[2];
+    fpos=gPos[2];
     gl_Position=fpos;
     EmitVertex();
     EndPrimitive();
 }
+;

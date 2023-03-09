@@ -1,3 +1,62 @@
+//! The Chunk and associated systems for CoalStar
+//! 
+//!     Chunk, as a struct, contains the index, height data, mesh, setpieces 
+//! list, and a bool to track if the chunk is loaded. At a later time setpiece 
+//! mesh call data may be referenced through the chunk. This, as an all-in-one 
+//! solution to drawing the chunk-bound objects through matrix-casting.
+//! 
+//! 
+//! Height Data:
+//!     The height data is a combination of two values: an array of u16's as
+//! heights, and a u8 heightmod offset. The heightmod is an unsigned char that 
+//! is multiplied by 10240 and applied to all height values, after being added 
+//! to a height value it is multiplied by 0.1f to create the height. Only even
+//! whole units have height values in the array, odd values are derive from 
+//! adjacent heights
+//! 
+//!     Height requests between rounded positions are derived with a ray/plane
+//! intercept formula from the heights as associated by the drawn tri. So:
+//! +---+
+//! | / |
+//! +---+
+//! 
+//! Mesh:
+//!     A chunk's terrain mesh will be a once-written vertex buffer object(VBO)
+//! containing all heights. Updates to terrain resolution, based on focal point, 
+//! will be through updating the IBO, iterating granularly. Each vertex will  
+//! consist of 8 bytes, passed and read as two 4 byte integers, kindof*[1]. 
+//! 
+//!     The packed structure layout of the chunk vertex is as follows:
+//! s = 1 bit for discard vertex
+//! z = 17 bits for vertex z pos [0..131072] as float * 0.1f []
+//! Zo = Zone, 8 bits for terrain texture and auto-generation data
+//! Xn = 8 bits for normal x [0..256] as float * (1 / 512) - 1.0 [-1.0..1.0]
+//! Yn = 8 bits for normal y [0..256] as float * (1 / 512) - 1.0 [-1.0..1.0]
+//! x = 11 bits for vertex x position [0..1025] 
+//! y = 11 bits for vertex y position [0..1025] 
+//! 
+//! [0] szzz_zzzz_zzzz_zzzz_zzZo_ZoZo_ZoXn_XnXn
+//! [1] XnYn_YnYn_Ynxx_xxxx_xxxx_xyyy_yyyy_yyyy
+//! 
+//!     Iteration of the IBO is performed from major to minor, in steps. It will 
+//! first iterate over the largest stride, checking distance to focus. If the 
+//! distance is closer than a defined bounds then it iterates the next stride
+//! within the larger stride. Within that it performs the stride-per-stride 
+//! iteration and checks range. This should perform smooth updates even on the 
+//! main thread. Any existing IBO is removed and the data is then pushed to the 
+//! GPU and bound appropriately. 
+//! 
+//! 
+//! 
+//! *[1]The data is packed as a u32 buffered 32 bit floats. However, with a lack
+//! of typechecking in the process of data buffering, the system is instructed 
+//! to read that memory as two 32 bit integers. In experimentation, the gpu 
+//! driver seems to fiddle with integral data types when sent as such. Nvidia's
+//! NSite GPU profiler reported the data as being accurate, but operations were 
+//! clearly broken. I assume this is a result of reducing RAM utilization, by 
+//! stacking or referencing partial values elsewhere, but I am entirely 
+//! uncertain. I am only aware of the results. 
+//! 
 const std = @import("std");
 const zmt = @import("zmt");
 const alc = @import("../coalsystem/allocationsystem.zig");
@@ -22,6 +81,14 @@ pub const Chunk = struct {
 /// Chunk map
 var chunk_map: []Chunk = undefined;
 var map_bounds: pst.pnt.Point3 = .{ .x = 0, .y = 0, .z = 0 };
+
+var mesh_res_rings : [4]pst.vct.Vector2 = [4]pst.vct.Vector2{
+    .{.x = 18, .y = 12},
+    .{.x = 72, .y = 48},
+    .{.x = 388, .y = 192},
+    .{.x = 1152, .y = 768}, 
+};
+
 
 pub fn initializeChunkMap(allocator: std.mem.Allocator, bounds: pst.pnt.Point3) !void {
     map_bounds = bounds;
@@ -93,18 +160,75 @@ pub fn unloadChunk(chunk_index : pst.pnt.Point3) void
     chunk.loaded = false;
 }
 
-pub fn constructBaseMesh(chunk: *Chunk) void {
+pub fn constructBaseMesh(chunk: *Chunk, focal_point : fcs.Focus) void {
     
+    //probably check that mesh is not already constructed
     chunk.mesh = msh.Mesh{};
+    for (0..1025) |y|
+        for (0..1025) |x|
+        {
+            var height = getHeight(pst.Position.init(chunk.index, .{.x = x, .y = y, .z = 0}));
+            _ = height;
+
+        };
     
-    
-    return null;
+    updateMeshIBO(chunk, focal_point);
 }
 
-pub fn updateMeshIBO(chunk: *Chunk, focal_point: fcs.Focus) void {
-    _ = chunk;
-    _ = focal_point;
-    return null;
+fn meshIBOspot(
+    chunk: *Chunk, 
+    focal_point: fcs.Focus, 
+    new_ibo: *std.ArrayList(i32), 
+    cur_x: usize, 
+    cur_y: usize, 
+    stride: usize, 
+    ring_index: i32
+    ) void
+{
+    const width = 1025;
+
+    for (0..4) |y|
+        for(0..4) |x|
+        {
+            const dist = (focal_point.position.squareDistance(pst.Position.init(chunk.index, .{
+                .x = cur_x + x * stride, .y = cur_x + y * stride, .z = 0})));
+
+            const index = cur_x + x * stride + cur_y + y * stride * width;
+            const valid_inner = if (ring_index < 0) false 
+                else (dist < @intToFloat(f32, mesh_res_rings[@intCast(usize, ring_index)].x * 
+                    mesh_res_rings[@intCast(usize, ring_index)].x)); 
+            const valid_outer = if (ring_index < 0) true
+                else (dist > @intToFloat(f32, mesh_res_rings[@intCast(usize, ring_index)].y * 
+                    mesh_res_rings[@intCast(usize, ring_index).y]));
+
+            if (valid_inner)
+                meshIBOspot(chunk, focal_point, cur_x + x * stride, cur_y + y * stride, stride / 4, ring_index - 1);
+            
+            if (valid_outer)
+            {
+                new_ibo.append(index);
+                new_ibo.append(index + stride);
+                new_ibo.append(index + stride + stride * width);
+                new_ibo.append(index);
+                new_ibo.append(index + stride + stride * width);
+                new_ibo.append(index + stride * width);
+            }
+        };
+}
+
+pub fn updateMeshIBO(chunk: *Chunk, focal_point: fcs.Focus) void 
+{
+    
+    var new_ibo = std.ArrayList(i32).init(alc.gpa_allocator);
+    meshIBOspot(chunk, focal_point, new_ibo, 0, 0, 256, 3);
+
+    if (chunk.mesh.ibo != 0)
+    {
+        //delete ibo
+    }    
+
+    //generate and attach ibo
+
 }
 
 // this is where the fun begins
@@ -122,7 +246,8 @@ pub fn getHeight(position : pst.Position) f32 {
             if (!chunk.loaded)
                 return 0.0;
 
-            return @as(f32, chunk.heights[(position.x >> 1) + (position.y >> 1) * 512]) * 0.1 + @as(f32, (chunk.height_mod * 1024)) ; 
+            return @intToFloat(f32, chunk.heights[(position.x >> 1) + (position.y >> 1) * 512]) * 0.1 + 
+                @intToFloat(f32, (chunk.height_mod * 1024)); 
         }
         else if ((position.y & (1 << 24)) == 0)
         {

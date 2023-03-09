@@ -1,5 +1,6 @@
 const std = @import("std");
 const zmt = @import("libs/zmath/build.zig");
+const zgl = @import("libs/zopengl/build.zig");
 
 // Although this function looks imperative, note that its job is to
 // declaratively construct a build graph that will be executed by an external
@@ -45,7 +46,9 @@ pub fn build(b: *std.Build) void {
 
     //ZMATH
     const zmt_pkg = zmt.Package.build(b, .{});
+    const zgl_pkg = zgl.Package.build(b, .{});
     exe.addModule("zmt", zmt_pkg.zmath);
+    exe.addModule("zgl", zgl_pkg.zopengl);
 
 
     exe.install();

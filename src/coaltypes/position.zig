@@ -63,8 +63,16 @@ pub const Position = struct {
         return .{ .x = x, .y = y, .z = z };
     }
 
+    ///Returns if the remainder of x is greater than the raminder of y
     pub inline fn xMinorGreater(self : Position) bool
     {
         return (self.x & MinorFilter) > (self.y & MinorFilter);
+    }
+
+    pub inline fn squareDistance(self : Position, to_dist : Position) f32
+    {
+        var _a = self.axial();
+        var _b = self.axial() + .{.x = (self.index().x - to_dist.index().x) * 1024.0, .y = (self.index().y - to_dist.index().y) * 1024.0, .z = 0};
+        return (_a.x - _b.x) * (_a.x - _b.x) + (_a.y - _b.y) * (_a.y - _b.y);
     }
 };

@@ -1,3 +1,14 @@
+//! The Central System for Engine Operations
+//! 
+//!     Conceptually the hind-brain and spinal column of the engine, CoalStar
+//! System should only concern itself with reacting to engine flags and 
+//! delegating functions to subsystems/type-owned-functions.
+//! 
+//!     Currently the CoalStarSystem concerns itself with engine initialization, 
+//! deinitialization, and engine frame operation. Eventually it will need to 
+//! handle calling the thread system and communing with the various helpers. 
+//! 
+
 pub const glw = @cImport({@cInclude("GL/glew.h");});
 pub const sdl = @cImport({@cInclude("SDL2/SDL.h");});
 const std = @import("std");
@@ -149,8 +160,9 @@ pub fn getEngineStateFlag(engine_flag : EngineFlag) bool
     return (@enumToInt(engine_flag) & engine_state) != 0;
 }
 
-//
-pub fn runEngine() void 
+/// Processes and engine frame
+/// Returns the inverse state of the quit flag
+pub fn runEngine() bool 
 {
     //update engine tick
     engine_tick +%= 1;
@@ -162,11 +174,13 @@ pub fn runEngine() void
         setEngineStateFlag(EngineFlag.ef_quitflag);
 
     // render
-    for(wnd.getWindowGroup()) |window|
-        rnd.renderWindow(&window);
+    //for(wnd.getWindowGroup()) |window|
+        //rnd.renderWindow(&window);
     
     
     // wait, 
     // TODO replace with proper clock timing
     sdl.SDL_Delay(15);    
+
+    return(!getEngineStateFlag(EngineFlag.ef_quitflag));
 }

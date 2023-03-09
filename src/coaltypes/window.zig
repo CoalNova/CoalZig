@@ -1,13 +1,25 @@
+//! Window is the catchall for the Window struct
+//! 
+//!     Each window exist under the indow struct, and should allow for 
+//! hardware, software, "textware", and other styles of window. 
+//! 
+//! Hardware: Utlizies GL renderer to generate the world and UI.
+//! Software: Utilizes SDL software renderer to draw iso world.
+//! Textware: Utilizes SDL software renderer to draw software UI.
+//! 
+//!     A window will house the focus, as the focus will cascadingly reference 
+//! data linked to that window's glcontext
+
 const std = @import("std");
 const sys = @import("../coalsystem/coalsystem.zig");
 const alc = @import("../coalsystem/allocationsystem.zig");
 const pnt = @import("../simpletypes/points.zig");
 const fcs = @import("../coaltypes/focus.zig");
 const rpt = @import("../coaltypes/report.zig");
-const rct = rpt.ReportCatagory;
 const stp = @import("../coaltypes/setpiece.zig");
 const msh = @import("../coaltypes/mesh.zig");
 const shd = @import("../coaltypes/shader.zig");
+const rct = rpt.ReportCatagory;
 const sdl = sys.sdl;
 
 pub const WindowType = enum(u8) { 

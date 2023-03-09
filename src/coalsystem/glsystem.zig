@@ -1,7 +1,9 @@
+const std = @import("std");
+const zgl = @import("zgl");
 const sys = @import("../coalsystem/coalsystem.zig");
-const sdl = sys.sdl;
 
-pub const GLError = error{
+
+pub const GLSError = error{
     GLInitFailed,
     GLValueOoB
 }; 
@@ -9,5 +11,9 @@ pub const GLError = error{
 pub fn initalizeGL() !void
 {
 
-
+    zgl.loadCoreProfile(@ptrCast(*const fn([:0]const u8) ?*anyopaque, &sys.sdl.SDL_GL_GetProcAddress), 3, 3) catch
+    {
+        std.debug.print("GL initialization failed\n", .{});
+        return GLSError.GLInitFailed;
+    };
 }

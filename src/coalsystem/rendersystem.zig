@@ -26,10 +26,10 @@ fn renderHardware(window : *const wnd.Window) void
         //error here
         return;
     }
-    glw.glClear(glw.GL_COLOR_BUFFER_BIT | glw.GL_DEPTH_BUFFER_BIT);
     //var window_size = sdl.SDL_GetWindowBordersSize.Window.getSize(window.sdl_window);
     //glw.Viewport(0, 0, window_size[0], window_size[1]);
     
+    glw.glClear(glw.GL_COLOR_BUFFER_BIT | glw.GL_DEPTH_BUFFER_BIT);
     sdl.SDL_GL_SwapWindow(window.sdl_window);
     
 }

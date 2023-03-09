@@ -1,3 +1,8 @@
+//! Report handles the internal engine logging
+//! 
+//!     For now it only recieves reports and stores them, will eventually
+//! output a log file on exit.
+
 const std = @import("std");
 const alc = @import("../coalsystem/allocationsystem.zig");
 const str = @import("../coaltypes/string.zig");
