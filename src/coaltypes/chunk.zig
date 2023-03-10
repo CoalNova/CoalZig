@@ -82,12 +82,6 @@ pub const Chunk = struct {
 var chunk_map: []Chunk = undefined;
 var map_bounds: pst.pnt.Point3 = .{ .x = 0, .y = 0, .z = 0 };
 
-var mesh_res_rings : [4]pst.vct.Vector2 = [4]pst.vct.Vector2{
-    .{.x = 18, .y = 12},
-    .{.x = 72, .y = 48},
-    .{.x = 388, .y = 192},
-    .{.x = 1152, .y = 768}, 
-};
 
 
 pub fn initializeChunkMap(allocator: std.mem.Allocator, bounds: pst.pnt.Point3) !void {
@@ -158,77 +152,6 @@ pub fn unloadChunk(chunk_index : pst.pnt.Point3) void
     chunk.setpieces = undefined;
 
     chunk.loaded = false;
-}
-
-pub fn constructBaseMesh(chunk: *Chunk, focal_point : fcs.Focus) void {
-    
-    //probably check that mesh is not already constructed
-    chunk.mesh = msh.Mesh{};
-    for (0..1025) |y|
-        for (0..1025) |x|
-        {
-            var height = getHeight(pst.Position.init(chunk.index, .{.x = x, .y = y, .z = 0}));
-            _ = height;
-
-        };
-    
-    updateMeshIBO(chunk, focal_point);
-}
-
-fn meshIBOspot(
-    chunk: *Chunk, 
-    focal_point: fcs.Focus, 
-    new_ibo: *std.ArrayList(i32), 
-    cur_x: usize, 
-    cur_y: usize, 
-    stride: usize, 
-    ring_index: i32
-    ) void
-{
-    const width = 1025;
-
-    for (0..4) |y|
-        for(0..4) |x|
-        {
-            const dist = (focal_point.position.squareDistance(pst.Position.init(chunk.index, .{
-                .x = cur_x + x * stride, .y = cur_x + y * stride, .z = 0})));
-
-            const index = cur_x + x * stride + cur_y + y * stride * width;
-            const valid_inner = if (ring_index < 0) false 
-                else (dist < @intToFloat(f32, mesh_res_rings[@intCast(usize, ring_index)].x * 
-                    mesh_res_rings[@intCast(usize, ring_index)].x)); 
-            const valid_outer = if (ring_index < 0) true
-                else (dist > @intToFloat(f32, mesh_res_rings[@intCast(usize, ring_index)].y * 
-                    mesh_res_rings[@intCast(usize, ring_index).y]));
-
-            if (valid_inner)
-                meshIBOspot(chunk, focal_point, cur_x + x * stride, cur_y + y * stride, stride / 4, ring_index - 1);
-            
-            if (valid_outer)
-            {
-                new_ibo.append(index);
-                new_ibo.append(index + stride);
-                new_ibo.append(index + stride + stride * width);
-                new_ibo.append(index);
-                new_ibo.append(index + stride + stride * width);
-                new_ibo.append(index + stride * width);
-            }
-        };
-}
-
-pub fn updateMeshIBO(chunk: *Chunk, focal_point: fcs.Focus) void 
-{
-    
-    var new_ibo = std.ArrayList(i32).init(alc.gpa_allocator);
-    meshIBOspot(chunk, focal_point, new_ibo, 0, 0, 256, 3);
-
-    if (chunk.mesh.ibo != 0)
-    {
-        //delete ibo
-    }    
-
-    //generate and attach ibo
-
 }
 
 // this is where the fun begins

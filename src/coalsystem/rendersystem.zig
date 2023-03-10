@@ -1,7 +1,7 @@
 const std = @import("std");
 const sys = @import("../coalsystem/coalsystem.zig");
 const sdl = sys.sdl;
-const glw = sys.glw;
+const zgl = @import("zgl");
 const wnd = @import("../coaltypes/window.zig");
 const rpt = @import("../coaltypes/report.zig");
 const cat = rpt.ReportCatagory;
@@ -26,10 +26,12 @@ fn renderHardware(window : *const wnd.Window) void
         //error here
         return;
     }
-    //var window_size = sdl.SDL_GetWindowBordersSize.Window.getSize(window.sdl_window);
-    //glw.Viewport(0, 0, window_size[0], window_size[1]);
+    zgl.clear(zgl.COLOR_BUFFER_BIT | zgl.DEPTH_BUFFER_BIT);
+
+    //reject error, embrace plowing through issues we don't care to address
+    _ = sdl.SDL_GetWindowSize(window.sdl_window, &window.size.x, &window.size.y);
+    zgl.viewport(0,0,window.size.x, window.size.y);
     
-    glw.glClear(glw.GL_COLOR_BUFFER_BIT | glw.GL_DEPTH_BUFFER_BIT);
     sdl.SDL_GL_SwapWindow(window.sdl_window);
     
 }

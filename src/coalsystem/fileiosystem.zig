@@ -1,3 +1,49 @@
+//! FileIOSystem manages IO disk ops in a single location
+//! 
+//!     FIO operations will manage compression and decompression, to prevent
+//! confusion on data state.
+//! 
+//! 
+//!     ChunkHeightData is collapsed in a process of u16->u8 steps. Initial u16
+//! height is saved, with each subsequent height as a delta. The height delta's 
+//! maximum variance is +- 6.4 units. At variances greater than that bounds, a 
+//! new u16 height is used, prefixed with a 255 byte. It is then compressed
+//! using the compression systems in the Zig std. Individual files are then 
+//! combined into a master file for distribution. Certain OSs don't seem to 
+//! like working with over ten thousand tiny files.
+//! 
+//!     ChunkOGDdata is a raw list of OGDs, separated by unit placement. It 
+//! iterates over whole x/y cords, and then it keeps OGDs grouped based on OGD 
+//! prefix. The prefix is 2bits: 
+//! 1_ = contains element
+//! _1 = element group continues, is not final element
+//! If lead bit is 0, then the entry is read as 2byte integer denoting steps to
+//! next element entry. Effectively thought of as an i16 to prevent falsely
+//! marking the lead bit.
+//! 
+//!     ChunkZoneData will be a pair value list. The first value is the zone
+//! byte, the second is a u16 for how many steps. As with all other chunk systems, 
+//! data is traversed with a mainscan/subscan of x/y. In the future it may be 
+//! worth checking on cost savings of ping-ponging the x scans to keep possible
+//! congruity.  
+//! 
+//!     
+//!     SetpieceContructionData will have metadata regarding a position in a 
+//! library file for material lookups, mesh, LOD, and any other asset lookup 
+//! data. It will also contain data on model offsets, physics data, scripted 
+//! connections, etc.
+//! 
+//! 
+//!     Meshes will be converted from OBJ files. The OBJ will have its uv's 
+//! parsed out to different vertices. Once the vertex data (position, normal, 
+//! and uv) is set, the outermost bounds will be checked for axis of the 
+//! vertex positions. From there each vertex axis will be assigned a 0-255 
+//! value, added to the lowest axial position, to the greatest, in increments
+//! of difference of the outer bounds.
+//!
+//!     
+//! 
+
 const std = @import("std");
 const sys = @import("../coalsystem/coalsystem.zig");
 const alc = @import("../coalsystem/allocationsystem.zig");
