@@ -126,6 +126,11 @@ fn getChunkFilename(allocator : std.mem.Allocator, index : pnt.Point3, map_name 
     return filename;
 }
 
+const ChunkFileError = error
+{
+    ChunkIndexMismatch
+};
+
 pub fn saveChunkHeights(heights : []u16, height_mod : u8, index : pnt.Point3, map_name : []u8) !void
 {
     const filename = try getChunkFilename(alc.gpa_allocator, index, map_name);
@@ -142,15 +147,81 @@ pub fn saveChunkHeights(heights : []u16, height_mod : u8, index : pnt.Point3, ma
 
     var writer = file.writer();
 
+
     //for now only supports 2d chunk layouts
     writer.writeIntLittle(i32, index.x);
     writer.writeIntLittle(i32, index.y);
-    //TODO bit twiddle to compress heights
-    //TODO also compress heights
-    writer.write(height_mod);
-    for(heights) |height| file.writer().writeIntLittle(u16, height);
+    writer.writeByte(height_mod);
 
+    //individual height processing
+    var current_height : u16 = 0;
+    for(0..512) |y|
+        for(0..512) |x|
+        {
+            const h_index  = x + y * 512;
+            const diff = @intCast(i32, heights[h_index]) - @intCast(i32, current_height) + 64;
+            if (diff < 128 or diff >= 0)
+            {
+                writer.writeByte(diff);
+                current_height =  @intCast(u16, @intCast(i32, current_height) + (diff - 64)); 
+            }
+            else 
+            {
+                writer.writeByte(255);
+                current_height = heights[h_index];
+                writer.writeIntLittle(u16, current_height);
+            }
+        };
 }
+
+pub fn loadChunkHeights(heights : *[]u16, height_mod : *u8, index : pnt.Point3, map_name : []u8) !void
+{
+    const filename = try getChunkFilename(alc.gpa_allocator, index, map_name);
+    defer alc.gpa_allocator.free(filename);
+
+    var file = try std.fs.cwd().createFile(filename, std.fs.File.CreateFlags{
+        .read = false, 
+        .truncate = false, 
+        .exclusive = false, 
+        .lock = .None, 
+        .lock_nonblocking = false,
+        });
+    defer file.close();
+
+    var reader = file.reader();
+    
+    var file_index : pnt.Point2 = .{};
+
+    //for now only supports 2d chunk layouts
+    file_index.x = try reader.readIntLittle(i32);
+    file_index.y = try reader.readIntLittle(i32);
+    
+    if (file_index.x != index.x or file_index.y != index.y)
+        return ChunkFileError.ChunkIndexMismatch;
+
+    height_mod = try reader.readByte();
+
+    //individual height processing
+    var current_height : u16 = 0;
+    for(0..512) |y|
+        for(0..512) |x|
+        {
+            const h_index  = x + y * 512;
+            const diff = @intCast(i32, heights[h_index]) - @intCast(i32, current_height) + 64;
+            if (diff < 128 or diff >= 0)
+            {
+                reader.readByte(diff);
+                current_height =  @intCast(u16, @intCast(i32, current_height) + (diff - 64)); 
+            }
+            else 
+            {
+                reader.readByte(255);
+                current_height = heights[h_index];
+                reader.readIntLittle(u16, current_height);
+            }
+        };
+}
+
 
 pub const MetaHeader = struct
 {
@@ -158,7 +229,8 @@ pub const MetaHeader = struct
     window_init_types : [8]wnd.WindowType = undefined,
 };
 
-pub fn loadMetaHeader(filename: []u8) MetaHeader {
+pub fn loadMetaHeader(filename: []u8) MetaHeader 
+{
     
     var meta_header : MetaHeader = .{
         .map_size=.{.x = 8,.y = 8,.z = 4}, 
