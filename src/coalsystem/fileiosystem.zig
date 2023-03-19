@@ -51,6 +51,7 @@ const chk = @import("../coaltypes/chunk.zig");
 const wnd = @import("../coaltypes/window.zig");
 const rpt = @import("../coaltypes/report.zig");
 const pnt = @import("../simpletypes/points.zig");
+const stp = @import("../coaltypes/setpiece.zig");
 
 const chunk_file_path = "./assets/map/000_000_000.cshf";
 const chunk_filename : []u8 = "./assets/world//00000000._hf";
@@ -126,9 +127,10 @@ fn getChunkFilename(allocator : std.mem.Allocator, index : pnt.Point3, map_name 
     return filename;
 }
 
+
 const ChunkFileError = error
 {
-    ChunkIndexMismatch
+    ChunkIndexMismatch,
 };
 
 pub fn saveChunkHeights(heights : []u16, height_mod : u8, index : pnt.Point3, map_name : []u8) !void
@@ -146,7 +148,6 @@ pub fn saveChunkHeights(heights : []u16, height_mod : u8, index : pnt.Point3, ma
     defer file.close();
 
     var writer = file.writer();
-
 
     //for now only supports 2d chunk layouts
     writer.writeIntLittle(i32, index.x);
@@ -179,13 +180,7 @@ pub fn loadChunkHeights(heights : *[]u16, height_mod : *u8, index : pnt.Point3, 
     const filename = try getChunkFilename(alc.gpa_allocator, index, map_name);
     defer alc.gpa_allocator.free(filename);
 
-    var file = try std.fs.cwd().createFile(filename, std.fs.File.CreateFlags{
-        .read = false, 
-        .truncate = false, 
-        .exclusive = false, 
-        .lock = .None, 
-        .lock_nonblocking = false,
-        });
+    var file = try std.fs.cwd().openFile(filename, .{});
     defer file.close();
 
     var reader = file.reader();
@@ -207,19 +202,31 @@ pub fn loadChunkHeights(heights : *[]u16, height_mod : *u8, index : pnt.Point3, 
         for(0..512) |x|
         {
             const h_index  = x + y * 512;
-            const diff = @intCast(i32, heights[h_index]) - @intCast(i32, current_height) + 64;
-            if (diff < 128 or diff >= 0)
+            var c = reader.readByte();
+
+            // check that currentheight isn't being written directly
+            if (c == 255)
             {
-                reader.readByte(diff);
-                current_height =  @intCast(u16, @intCast(i32, current_height) + (diff - 64)); 
+                reader.readIntLittle(current_height);
             }
             else 
             {
-                reader.readByte(255);
-                current_height = heights[h_index];
-                reader.readIntLittle(u16, current_height);
+                current_height = @intCast(u16, @intCast(i32, current_height) + @intCast(i16, c) - 64);
             }
+            heights[h_index] = current_height;
         };
+}
+
+pub fn saveChunkSetpieces(chunk : chk.Chunk) !void
+{
+    //sort setpiece list by placement 
+    _ = chunk;
+}
+
+pub fn loadChunkSetpieces(chunk : chk.Chunk) !void
+{
+    chunk.setpieces = alc.gpa_allocator.alloc(stp.Setpiece, 1);
+
 }
 
 

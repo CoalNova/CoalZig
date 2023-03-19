@@ -110,6 +110,7 @@ pub fn getMessageString(message_index: u16) []u8 {
         33 => return "Window exists outside of group",
         41 => return "Game Meta Header failed to load",
         61 => return "GLEW failed initialization",
+        81 => return "Failed appending mesh",
         101 => return "Unable to allocate memory",
         else => return "Report text not yet implemented",
     }

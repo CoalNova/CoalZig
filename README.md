@@ -2,6 +2,12 @@
 ## An Implementation of the CoalStar Engine in Zig
 ___
 
+##### Please Note:
+
+The main branch of this repository is most likely in a state of broken/barely functional. It is an active reimplementation of a preexisting codebase, and is in a perpetual state of "jam things in as they fit". Once code reimplementation is complete, then further progress will be performed on a mid-release branch.
+
+Please do not confuse me with someone that knows what they are doing, thank you.
+
 ### *At a Glance: CoalStar Engine Goals* 
 
 #### Primary goals of CoalStar:

@@ -1,57 +1,71 @@
 const std = @import("std");
 const zgl = @import("zgl");
-const shd = @import("../coaltypes/shader.zig");
-const mat = @import("../coaltypes/material.zig");
+const mtl = @import("../coaltypes/material.zig");
 const alc = @import("../coalsystem/allocationsystem.zig");
 const chk = @import("../coaltypes/chunk.zig");
 const fcs = @import("../coaltypes/focus.zig");
 const pst = @import("../coaltypes/position.zig");
+const rpt = @import("../coaltypes/report.zig");
 
 pub const Mesh = struct {
     id : u32 = 0,
-    shader : *shd.Shader = undefined,
+    material : mtl.Material = .{},
     subscribers : u32 = 0,
     vao : u32 = 0,
     vbo : u32 = 0,
     ibo : u32 = 0,
-    vio : u32 = 0
+    vio : u32 = 0,
+    vertex_size : usize = 1,
+    drawstyle_enum : u32 = 0,
+    static : bool = false
 };
 
-var meshes : []Mesh = undefined;
-var mesh_count : u32 = 0;
+/// Mesh global collection
+/// not globally accessible
+/// just remains in scope
+var meshes : ?std.ArrayList(Mesh) = null;
 
-pub fn getMesh(mesh_id : u32) !*Mesh
+pub fn checkoutMesh(mesh_id : u32) ?Mesh
 {
+    if (meshes == null)
+        meshes = std.ArrayList(Mesh).init(alc.gpa_allocator);
     
-    for(0..mesh_count) |index|
-        if (mesh_id == meshes[index].id)
-        {
-            return &meshes[index];
-        };
-    return try loadMesh(mesh_id); 
+    for(meshes.?.items) |mesh|
+        if (mesh_id == mesh.id)
+            return mesh;
+
+    return loadMesh(mesh_id); 
 } 
 
-fn loadMesh(mesh_id : u32) !*Mesh
+pub fn checkinMesh(mesh : Mesh) void
+{
+    for(&meshes.?.items) |*m|
+    {
+        if (mesh.id == m.id)
+            m.subscribers -= 1;
+    } 
+}
+
+fn loadMesh(mesh_id : u32) ?Mesh
 {
     var mesh : Mesh = .{.id = mesh_id};
-    //shader lookup, or bundled into mesh ID... somehow
-    mesh.shader = shd.getShader(mesh_id);
-
-    //check to resize mesh collection
-    if (mesh_count >= meshes.len)
-    {   
-        var new_mesh_size : usize = if (meshes.len == 0) 4 else meshes.len * 2;
-        var new_meshes : []Mesh = undefined;
-        new_meshes = try alc.gpa_allocator.alloc(Mesh, new_mesh_size);
-
-        for (meshes, 0..) |m, i| new_meshes[i] = m;
-        if (meshes.len > 0)
-            alc.gpa_allocator.free(meshes);
-        meshes = new_meshes;
-    }
-    meshes[mesh_count] = mesh;
-    mesh_count += 1;
-    return &meshes[mesh_count - 1];
+    
+    //TODO resolve mesh_id gets material_id
+    mesh.material = mtl.checkoutMaterial(@intCast(u16, mesh_id));
+    
+    zgl.genVertexArrays(1, &mesh.vao);
+    zgl.bindVertexArray(mesh.vao);
+    zgl.genBuffers(1, &mesh.vbo);
+    zgl.genBuffers(1, &mesh.ibo);
+    zgl.genBuffers(1, &mesh.vio);
+    
+    meshes.?.append(mesh) catch |err| {
+        std.debug.print("{}\n", .{err});
+        rpt.logReportInit(@enumToInt(rpt.ReportCatagory.level_error), 
+            81, [4]i32{@intCast(i32, mesh_id),0,0,0});
+        return checkoutMesh(0);
+    };
+    return mesh;
 }
 
 

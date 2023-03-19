@@ -23,41 +23,38 @@
 //!     
 //! 
 //! 
-const sys = @import("coalsystem/coalsystem.zig");
-const fio = @import("coalsystem/fileiosystem.zig");
-const wnd = @import("coaltypes/window.zig");
-const pnt = @import("simpletypes/points.zig");
 const std = @import("std");
-const zgl = @import("zgl");
-const alc = @import("coalsystem/allocationsystem.zig");
+const sys = @import("coalsystem/coalsystem.zig");
+const stp = @import("coaltypes/setpiece.zig");
+const wnd = @import("coaltypes/window.zig");
+const chk = @import("coaltypes/chunk.zig");
+const pnt = @import("simpletypes/points.zig");
 
-pub fn main() void 
+pub fn main() !void 
 {
     // Start system,
     sys.ignite();
     // Defer closing of system
     defer (sys.douse());
 
-    var point = [_]f32{
-        -0.8, -0.8, 0.0,
-         0.8, -0.8, 0.0,
-         0.0,  0.8, 0.0,
-        }; 
 
-    std.debug.print("got here\n", .{});
-    std.debug.print("GL Error: {}\n", .{zgl.getError()});
+    const cube = stp.getSetpiece(.{});
+    
+    const window = wnd.getWindow(wnd.WindowType.hardware).?;
 
-    var vao : u32 = 0;
-    var vbo : u32 = 0;
-    zgl.genVertexArrays(1, &vao);
-    zgl.bindVertexArray(vao);
-    zgl.genBuffers(1, &vbo);
-    zgl.bindBuffer(zgl.ARRAY_BUFFER, vbo);
-    zgl.bufferData(zgl.ARRAY_BUFFER, @sizeOf(f32) * point.len, &point, zgl.STATIC_DRAW);
+    stp_blk : for (window.focal_point.active_chunks) |index|
+    {
+        const focal_index : pnt.Point3 = window.focal_point.position.index();
+        if (index.equals(focal_index))
+        {
+            try chk.getChunk(index).?.setpieces.?.append(cube);
+            break : stp_blk;
+        }
+    }
+    
 
     //main loop
     while(sys.runEngine())
     {
-        
     }
 }

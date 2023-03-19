@@ -51,12 +51,21 @@ pub fn deinitializeShaders() void
 
 pub fn checkoutShader(shader_id : u32) Shader
 {
-    for (shaders) |shader|
+    for (shaders.items, 0..) |shader, index|
         if (shader.id == shader_id)
         {
-            shader.subscribers += 1;
-            return &shader;
+            shaders.items[index].subscribers += 1;
+            return shader;
         }; 
+
+    //std.process.exit(0);
+
+    return if (shader_id == 0) loadDebugCubeShader() 
+        else loadShader(shader_id) catch |err|
+    {
+        std.debug.print("{}\n", .{err});
+        return checkoutShader(0);
+    };
 }
 
 pub fn checkinShader(shader : Shader) void 
@@ -65,92 +74,154 @@ pub fn checkinShader(shader : Shader) void
     //unkown if shader program removal would be necessaary.
 }
 
+fn loadShaderModule(shader_name : []u8, program : u32, module_type : u32) !u32
+{
+    var vert_file = try std.fs.cwd().openFile(shader_name, .{});
+    defer vert_file.close();
+
+    var shader_source = try alc.gpa_allocator.alloc(u8, (try vert_file.stat()).size + 1);
+    defer alc.gpa_allocator.free(shader_source);
+    for(0..shader_source.len - 1) |index|
+        shader_source[index] = try vert_file.reader().readByte();    
+    shader_source[shader_source.len - 1] = '\x00';
+
+    var module : u32 = zgl.createShader(module_type);
+    zgl.shaderSource(module, 1, @ptrCast([*c]const [*c]const i8, &shader_source.ptr), null);
+    zgl.compileShader(module);
+    zgl.attachShader(program, module);
+
+    return module;
+}
+
 fn loadShader(shader_id : u32) !Shader
 {
     var shader : Shader = .{};
     shader.id = shader_id;
     shader.subscribers = 1;
+    shader.program = zgl.createProgram();
 
-    var filename : std.ArrayList(u8) = undefined;
-    filename.init(alc.gpa_allocator);
+    var filename : std.ArrayList(u8) = std.ArrayList(u8).init(alc.gpa_allocator);
     defer filename.deinit();
 
-    filename.appendSlice("./shaders/");
-    filename.appendSlice(getShaderName(shader_id));
+    try filename.appendSlice("./shaders/");
+    try filename.appendSlice(getShaderName(shader_id));
 
     var vert_filename : std.ArrayList(u8) = try filename.clone();
-    vert_filename.appendSlice(".v.shader");
     defer vert_filename.deinit();
-    var vert_file = try std.fs.cwd().openFile(vert_filename.items, .{});
-    defer vert_file.close();
-    var vert_source = try vert_file.readToEndAlloc(alc.gpa_allocator, 65536);
-    defer alc.gpa_allocator.free(vert_source);
-    var vert_shader : u32 = zgl.createShader(zgl.VERTEX_SHADER);
-    defer zgl.deleteShader(vert_shader);
-    zgl.shaderSource(vert_shader, 1, @ptrCast([*c]const [*c]const i8, &vert_source.ptr), null);
-    zgl.compileShader(vert_shader);
-    zgl.attachShader(shader.program, vert_shader);
+    try vert_filename.appendSlice(".v.shader");
+    const vertex_module = try loadShaderModule(vert_filename.items, shader.program, zgl.VERTEX_SHADER);
+    defer zgl.deleteShader(vertex_module);
 
     var geom_filename : std.ArrayList(u8) = try filename.clone();
-    vert_filename.appendSlice(".g.shader");
     defer geom_filename.deinit();
-    var geom_file = try std.fs.cwd().openFile(geom_filename.items, .{});
-    defer geom_file.close();
-    var geom_source = try geom_file.readToEndAlloc(alc.gpa_allocator, 65536);
-    defer alc.gpa_allocator.free(geom_source);
-    var geom_shader : u32 = zgl.createShader(zgl.GEOMETRY_SHADER);
-    defer zgl.deleteShader(geom_shader);
-    zgl.shaderSource(geom_shader, 1, @ptrCast([*c]const [*c]const i8, &geom_source.ptr), null);
-    zgl.compileShader(geom_shader);
-    zgl.attachShader(shader.program, geom_shader);
-
+    try geom_filename.appendSlice(".g.shader");
+    const geometry_module = try loadShaderModule(geom_filename.items, shader.program, zgl.GEOMETRY_SHADER);
+    defer zgl.deleteShader(geometry_module);
+    
     var frag_filename : std.ArrayList(u8) = try filename.clone();
-    vert_filename.appendSlice(".f.shader");
     defer frag_filename.deinit();
-    var frag_file = try std.fs.cwd().openFile(frag_filename.items, .{});
-    defer frag_file.close();
-    var frag_source = try frag_file.readToEndAlloc(alc.gpa_allocator, 65536);
-    defer alc.gpa_allocator.free(frag_source);
-    var frag_shader : u32 = zgl.createShader(zgl.FRAGMENT_SHADER);
-    defer zgl.deleteShader(frag_shader);
-    zgl.shaderSource(frag_shader, 1, @ptrCast([*c]const [*c]const i8, &frag_source.ptr), null);
-    zgl.compileShader(frag_shader);
-    zgl.attachShader(shader.program, frag_shader);
+    try frag_filename.appendSlice(".f.shader");
+    const fragment_module = try loadShaderModule(frag_filename.items, shader.program, zgl.FRAGMENT_SHADER);
+    defer zgl.deleteShader(fragment_module);
 
-    shader.program = zgl.createProgram();
     zgl.linkProgram(shader.program);
     zgl.useProgram(shader.program);
 
-    shader.mtx_name = zgl.getUniformLocation(shader.program, "matrix");
-    shader.mdl_name = zgl.getUniformLocation(shader.program, "model");
-    shader.cam_name = zgl.getUniformLocation(shader.program, "camera");
-    shader.rot_name = zgl.getUniformLocation(shader.program, "rotation");
-    shader.bnd_name = zgl.getUniformLocation(shader.program, "bounds");
-    shader.ind_name = zgl.getUniformLocation(shader.program, "index");
-    shader.str_name = zgl.getUniformLocation(shader.program, "stride");
-    shader.bse_name = zgl.getUniformLocation(shader.program, "base");
-    shader.ran_name = zgl.getUniformLocation(shader.program, "range");
-    shader.sun_name = zgl.getUniformLocation(shader.program, "sun");
-    shader.aml_name = zgl.getUniformLocation(shader.program, "ambientLuminance");
-    shader.amc_name = zgl.getUniformLocation(shader.program, "ambientChroma");
-    shader.tx0_name = zgl.getUniformLocation(shader.program, "tex0");
-    shader.tx1_name = zgl.getUniformLocation(shader.program, "tex1");
-    shader.tx2_name = zgl.getUniformLocation(shader.program, "tex2");
-    shader.tx3_name = zgl.getUniformLocation(shader.program, "tex3");
-    shader.to0_name = zgl.getUniformLocation(shader.program, "texOffset0");
-    shader.to1_name = zgl.getUniformLocation(shader.program, "texOffset1");
-    shader.to2_name = zgl.getUniformLocation(shader.program, "texOffset2");
-    shader.to3_name = zgl.getUniformLocation(shader.program, "texOffest3");
+    shader.mtx_name = zgl.getUniformLocation(shader.program, @ptrCast([*c]const i8, "matrix\x00"));
+    shader.mdl_name = zgl.getUniformLocation(shader.program, @ptrCast([*c]const i8, "model\x00"));
+    shader.cam_name = zgl.getUniformLocation(shader.program, @ptrCast([*c]const i8, "camera\x00"));
+    shader.rot_name = zgl.getUniformLocation(shader.program, @ptrCast([*c]const i8, "rotation\x00"));
+    shader.bnd_name = zgl.getUniformLocation(shader.program, @ptrCast([*c]const i8, "bounds\x00"));
+    shader.ind_name = zgl.getUniformLocation(shader.program, @ptrCast([*c]const i8, "index\x00"));
+    shader.str_name = zgl.getUniformLocation(shader.program, @ptrCast([*c]const i8, "stride\x00"));
+    shader.bse_name = zgl.getUniformLocation(shader.program, @ptrCast([*c]const i8, "base\x00"));
+    shader.ran_name = zgl.getUniformLocation(shader.program, @ptrCast([*c]const i8, "range\x00"));
+    shader.sun_name = zgl.getUniformLocation(shader.program, @ptrCast([*c]const i8, "sun\x00"));
+    shader.aml_name = zgl.getUniformLocation(shader.program, @ptrCast([*c]const i8, "ambientLuminance\x00"));
+    shader.amc_name = zgl.getUniformLocation(shader.program, @ptrCast([*c]const i8, "ambientChroma\x00"));
+    shader.tx0_name = zgl.getUniformLocation(shader.program, @ptrCast([*c]const i8, "tex0\x00"));
+    shader.tx1_name = zgl.getUniformLocation(shader.program, @ptrCast([*c]const i8, "tex1\x00"));
+    shader.tx2_name = zgl.getUniformLocation(shader.program, @ptrCast([*c]const i8, "tex2\x00"));
+    shader.tx3_name = zgl.getUniformLocation(shader.program, @ptrCast([*c]const i8, "tex3\x00"));
+    shader.to0_name = zgl.getUniformLocation(shader.program, @ptrCast([*c]const i8, "texOffset0\x00"));
+    shader.to1_name = zgl.getUniformLocation(shader.program, @ptrCast([*c]const i8, "texOffset1\x00"));
+    shader.to2_name = zgl.getUniformLocation(shader.program, @ptrCast([*c]const i8, "texOffset2\x00"));
+    shader.to3_name = zgl.getUniformLocation(shader.program, @ptrCast([*c]const i8, "texOffest3\x00"));
 
-    shaders.append(shader);
+    try shaders.append(shader);
     return shader;
 }
 
-fn getShaderName(shader_id : u32) []u8
+fn getShaderName(shader_id : u32) []const u8
 {
-    switch (shader_id) {
-        0 => return "debug_cube",
+    return switch (shader_id) {
+        0 => "debug_cube",
         else => "",
-    }
-    unreachable;
+    };
 }
+
+
+fn loadDebugCubeShader() Shader
+{
+    var shader : Shader = .{};
+    shader.program = zgl.createProgram();
+
+    var vert_module : u32 = zgl.createShader(zgl.VERTEX_SHADER);
+    zgl.shaderSource(vert_module, 1, @ptrCast([*c]const [*c]const i8, &debug_cube_v), null);
+    defer zgl.deleteShader(vert_module);
+    zgl.compileShader(vert_module);
+    zgl.attachShader(shader.program, vert_module);
+
+    var geom_module : u32 = zgl.createShader(zgl.GEOMETRY_SHADER);
+    zgl.shaderSource(geom_module, 1, @ptrCast([*c]const [*c]const i8, &debug_cube_g), null);
+    defer zgl.deleteShader(geom_module);
+    zgl.compileShader(geom_module);
+    zgl.attachShader(shader.program, geom_module);
+
+    var frag_module : u32 = zgl.createShader(zgl.FRAGMENT_SHADER);
+    zgl.shaderSource(frag_module, 1, @ptrCast([*c]const [*c]const i8, &debug_cube_f), null);
+    defer zgl.deleteShader(frag_module);
+    zgl.compileShader(frag_module);
+    zgl.attachShader(shader.program, frag_module);
+
+    zgl.linkProgram(shader.program);
+    zgl.useProgram(shader.program);
+
+    shader.mtx_name = zgl.getUniformLocation(shader.program, @ptrCast([*c]const i8, "matrix\x00"));
+
+    return shader;
+}
+
+const debug_cube_v : []const u8 = 
+\\#version 330 core\n layout (location = 0) in vec3 inPos;
+\\out vec4 pos;\n void main() { pos = vec4(inPos, 1.0f);} \x00
+;
+const debug_cube_g : []const u8 = 
+\\#version 330 core\n  layout(points) in;
+\\layout(triangle_strip, max_vertices = 36) out;
+\\out vec4 vPos;\n uniform mat4 matrix;
+\\vec3 verts[8] = vec3[](
+\\	vec3(-0.5f, -0.5f, -0.5f),\n vec3(0.5f, -0.5f, -0.5f),
+\\	vec3(-0.5f, -0.5f, 0.5f),\n vec3(0.5f, -0.5f, 0.5f),
+\\	vec3(0.5f, 0.5f, -0.5f),\n vec3(-0.5f, 0.5f, -0.5f),
+\\	vec3(0.5f, 0.5f, 0.5f),\n vec3(-0.5f, 0.5f, 0.5f));
+\\void BuildFace(int fir, int sec, int thr, int frt){
+\\	vPos = matrix * vec4(verts[fir], 1.0f);\n gl_Position = vPos; \n EmitVertex();
+\\	vPos = matrix * vec4(verts[sec], 1.0f);\n gl_Position = vPos; \n EmitVertex();
+\\	vPos = matrix * vec4(verts[thr], 1.0f);\n gl_Position = vPos; \n EmitVertex();
+\\	EndPrimitive();
+\\	vPos = matrix * vec4(verts[fir], 1.0f);\n gl_Position = vPos;\n EmitVertex();
+\\	vPos = matrix * vec4(verts[frt], 1.0f);\n gl_Position = vPos;\n EmitVertex();
+\\	vPos = matrix * vec4(verts[sec], 1.0f);\n gl_Position = vPos;\n EmitVertex();
+\\	EndPrimitive(); }
+\\void main(){
+\\	BuildFace(0, 3, 2, 1);\n  BuildFace(5, 2, 7, 0);
+\\	BuildFace(1, 6, 3, 4);\n  BuildFace(2, 6, 7, 3);
+\\	BuildFace(5, 1, 0, 4);\n  BuildFace(4, 7, 6, 5);} \x00
+;
+
+const debug_cube_f : []const u8 = 
+\\#version 330 core\n in vec4 fPos;\n out vec4 fColor;
+\\void main(){fColor = vec4(sin(fpos.x) * 0.4f + 1.2f, 
+\\sin(fpos.y) * 0.4f + 1.2f, 0.8f, 1.0f); } \x00
+;
