@@ -233,7 +233,7 @@ pub fn loadChunkSetpieces(chunk : chk.Chunk) !void
 pub const MetaHeader = struct
 {
     map_size : pnt.Point3 = undefined,
-    window_init_types : [8]wnd.WindowType = undefined,
+    window_init_types : [8]wnd.WindowCategory = undefined,
 };
 
 pub fn loadMetaHeader(filename: []u8) MetaHeader 
@@ -241,15 +241,15 @@ pub fn loadMetaHeader(filename: []u8) MetaHeader
     
     var meta_header : MetaHeader = .{
         .map_size=.{.x = 8,.y = 8,.z = 4}, 
-        .window_init_types = [_]wnd.WindowType{
-            wnd.WindowType.hardware, 
-            wnd.WindowType.unused, 
-            wnd.WindowType.unused, 
-            wnd.WindowType.unused, 
-            wnd.WindowType.unused, 
-            wnd.WindowType.unused, 
-            wnd.WindowType.unused, 
-            wnd.WindowType.unused, 
+        .window_init_types = [_]wnd.WindowCategory{
+            wnd.WindowCategory.hardware, 
+            wnd.WindowCategory.unused, 
+            wnd.WindowCategory.unused, 
+            wnd.WindowCategory.unused, 
+            wnd.WindowCategory.unused, 
+            wnd.WindowCategory.unused, 
+            wnd.WindowCategory.unused, 
+            wnd.WindowCategory.unused, 
         }
     };
     

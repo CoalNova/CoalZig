@@ -33,17 +33,17 @@ const rct = rpt.ReportCatagory;
 const sdl = sys.sdl;
 const cam = @import("../coaltypes/camera.zig");
 
-pub const WindowType = enum(u8) { 
+pub const WindowCategory = enum(u8) { 
     unused = 0x00, software = 0x01, hardware = 0x02, textware = 0x03 };
 
 /// Window container struct that houses the SDL window,
 /// render surfaces, renderer and local mouse position.
 /// Will contain GLcontext and relevant GL handles for 3D
 pub const Window = struct {
-    window_type: WindowType = WindowType.unused,
+    category: WindowCategory = WindowCategory.unused,
     size : pnt.Point2 = .{},
     sdl_window: ?*sdl.SDL_Window = null,
-    gl_context: sdl.SDL_GLContext = undefined,
+    gl_context: sdl.SDL_GLContext = null,
     sdl_renderer: ?*sdl.SDL_Renderer = null,
     window_surface: [*c]sdl.SDL_Surface = null,
     mouse_position: [2]i32 = [_]i32{0,0},
@@ -51,36 +51,50 @@ pub const Window = struct {
     camera : cam.Camera = .{},
 };
 
-var window_group : []?Window = undefined;
-var window_count: u16 = 0;
+var window_group : std.ArrayList(?*Window) = undefined;
 
-pub fn initWindowGroup() !void
+pub fn initWindowGroup() void
 {
-    window_group = try alc.gpa_allocator.alloc(?Window, 4);
-    for (0..4) |index|
-        window_group[index] = null;
+    window_group = std.ArrayList(?*Window).init(alc.gpa_allocator);
+}
+pub fn deinitWindowGroup() void
+{
+    for (window_group.items) |window|
+        if (window != null)
+        {
+           switch(window.?.category)
+            {
+                WindowCategory.hardware =>
+                    sdl.SDL_GL_DeleteContext(window.?.gl_context),
+                WindowCategory.software =>
+                    sdl.SDL_DestroyRenderer(window.?.sdl_renderer),
+                WindowCategory.textware => {},
+                WindowCategory.unused => {}
+            }
+            sdl.SDL_DestroyWindow(window.?.sdl_window);
+            
+            window.?.category = WindowCategory.unused;
+        };
 }
 
+
 //TODO windowID? 
-pub fn getWindow(window_type : WindowType) ?Window
+pub fn getWindow(category : WindowCategory) ?*Window
 {
-    for(window_group) |window|
+    for(window_group.items) |window|
     {
         if (window != null)
-            if (window.?.window_type == window_type)
+            if (window.?.category == category)
                 return window;
     }
     return null;
 }
 
-pub fn getWindowGroup() []?Window
+/// Returns Window Group 
+/// Treat as a temporary
+pub fn getWindowGroup() []?*Window
 {
-    return window_group;
-}
-
-pub fn getWindowCount() u16
-{
-    return window_count;
+    return window_group.items;
 }
 
 const WindowError = error {
@@ -90,19 +104,41 @@ const WindowError = error {
     ErrorSoftRenderer
 };
 
-pub fn createWindow(window_type: WindowType, window_name: []const u8, rect: pnt.Point4) ?Window {
+pub fn createWindow(category: WindowCategory, window_name: []const u8, rect: pnt.Point4) ?*Window {
 
     //catch eronius request first
-    if (window_type == WindowType.unused)
+    if (category == WindowCategory.unused)
         return null;
 
-    var window: Window = .{};
+    var window: *Window = undefined;
+    wnd_blk:
+    {
+        for (window_group.items) |w|
+            if (w.?.category == WindowCategory.unused)
+            {
+                window = w.?;
+                break : wnd_blk;
+            };
+        window = alc.gpa_allocator.create(Window) catch |err| {
+            std.debug.print("window create err: {}\n", .{err});
+            const cat : u16 = @enumToInt(rpt.ReportCatagory.level_error) &  @enumToInt(rpt.ReportCatagory.memory_allocation);
+            rpt.logReportInit(cat, 101, [4]i32{0, 0, 0, 0});
+            return null;
+        };
+        window_group.append(window) catch |err|
+        {
+            std.debug.print("window add err: {}\n", .{err});
+            const cat : u16 = @enumToInt(rpt.ReportCatagory.level_error) &  @enumToInt(rpt.ReportCatagory.memory_allocation);
+            rpt.logReportInit(cat, 101, [4]i32{0, 0, 0, 0});
+            return null;
+        };
+    }
 
-    window.window_type = window_type;
+    window.category = category;
 
     var flags: sdl.SDL_WindowFlags = sdl.SDL_WINDOW_RESIZABLE;
     
-    if (window_type == WindowType.hardware) 
+    if (category == WindowCategory.hardware) 
         flags |= sdl.SDL_WINDOW_OPENGL;
 
     window.sdl_window = sdl.SDL_CreateWindow(@ptrCast([*c]const u8, window_name), rect.y, rect.z, rect.w, rect.x, flags);
@@ -113,12 +149,13 @@ pub fn createWindow(window_type: WindowType, window_name: []const u8, rect: pnt.
     errdefer 
         sdl.SDL_DestroyWindow(window.sdl_window);
 
-    switch (window_type) {
-        WindowType.hardware => 
+    switch (category) {
+        WindowCategory.hardware => 
         {
             window.gl_context = sdl.SDL_GL_CreateContext(window.sdl_window);
+            window.camera = .{};
         },
-        WindowType.software => 
+        WindowCategory.software => 
         {
             window.sdl_renderer = sdl.SDL_CreateRenderer(window.sdl_window, -1, sdl.SDL_RENDERER_SOFTWARE);
             if (window.sdl_renderer == null)
@@ -126,57 +163,22 @@ pub fn createWindow(window_type: WindowType, window_name: []const u8, rect: pnt.
             
             window.window_surface = sdl.SDL_GetWindowSurface(window.sdl_window);
         },
-        WindowType.textware => {},
-        WindowType.unused => {}
+        WindowCategory.textware => {},
+        WindowCategory.unused => {}
     }
-
-    if (window_count > window_group.len) {
-        var new_group = alc.gpa_allocator.alloc(?Window, window_group.len * 2) catch |err| {
-            std.debug.print("Allocation of increased window group failed: {!}\n", .{err});
-            return null;
-        };
-        for (window_group, 0..) |w, i| new_group[i] = w;
-        alc.gpa_allocator.free(window_group);
-        window_group = new_group;
-    }
-    window_group[window_count] = window;
-    window_count += 1;
 
     return window;
 }
 
-pub fn destroyWindowGroup() void
-{
-    for(0..window_count) |index|
-    {
-        if (window_group[index] != null)
-        {
-            switch(window_group[index].?.window_type)
-            {
-                WindowType.hardware =>
-                    sdl.SDL_GL_DeleteContext(window_group[index].?.gl_context),
-                WindowType.software =>
-                    sdl.SDL_DestroyRenderer(window_group[index].?.sdl_renderer),
-                WindowType.textware => {},
-                WindowType.unused => {}
-            }
-
-            sdl.SDL_DestroyWindow(window_group[index].?.sdl_window);
-            window_group[index] = null;
-        }
-    }
-    window_count = 0;
-}
-
 pub fn destroyWindow(window : *Window) void
-{   switch(window.window_type)
+{   switch(window.category)
     {
-        WindowType.hardware =>
+        WindowCategory.hardware =>
             sdl.SDL_GL_DeleteContext(window.gl_context),
-        WindowType.software =>
+        WindowCategory.software =>
             sdl.SDL_DestroyRenderer(window.renderer),
-        WindowType.textware => {},
-        WindowType.unused => {}
+        WindowCategory.textware => {},
+        WindowCategory.unused => {}
     }
 
     if (window.focal_point != null)
@@ -184,12 +186,5 @@ pub fn destroyWindow(window : *Window) void
 
     sdl.SDL_DestroyWindow(window.sdl_window);
 
-    for(window_group, 0..) |w, i|
-        if (&w == window)
-        {  
-            for(window_group, (i+1)..) |w_, i_|
-                window_group[i_ - 1] = w_;
-            window_count -= 1;
-        };
     rpt.logReportInit(@enumToInt(rct.level_information) | @enumToInt(rct.window_system), 33, [4]i32{0,0,0,0});
 }

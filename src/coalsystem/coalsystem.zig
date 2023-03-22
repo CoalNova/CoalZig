@@ -22,6 +22,7 @@ const pnt = @import("../simpletypes/points.zig");
 const fcs = @import("../coaltypes/focus.zig");
 const chk = @import("../coaltypes/chunk.zig");
 const gls = @import("../coalsystem/glsystem.zig");
+const pst = @import("../coaltypes/position.zig");
 
 
 // The current tic of the engine,
@@ -57,19 +58,7 @@ pub fn ignite() void {
         return;
     };
 
-    wnd.initWindowGroup() catch |err| 
-    {
-        std.debug.print("initialization of window group collection failed {!}\n", .{err});
-        rpt.logReport(rpt.Report.init
-        (
-            @enumToInt(rpt.ReportCatagory.level_terminal) | @enumToInt(rpt.ReportCatagory.memory_allocation),
-            31,
-            [4]i32{0,0,0,0}, 
-            engine_tick
-        ));            
-        setEngineStateFlag(EngineFlag.ef_quitflag);
-        return;
-    };
+    wnd.initWindowGroup();
 
     if (sdl.SDL_Init(sdl.SDL_INIT_EVERYTHING) != 0)
     {
@@ -103,7 +92,7 @@ pub fn ignite() void {
             continue : win_blk;
         }
 
-        if (window_type == wnd.WindowType.hardware and !getEngineStateFlag(EngineFlag.ef_quitflag))
+        if (window_type == wnd.WindowCategory.hardware and !getEngineStateFlag(EngineFlag.ef_quitflag))
         {
         
             gli_blk:
@@ -118,9 +107,12 @@ pub fn ignite() void {
             
         }
 
-        if (window_type == wnd.WindowType.hardware or wnd.WindowType.software == window_type)
+        if (window_type == wnd.WindowCategory.hardware or wnd.WindowCategory.software == window_type)
         {
+            window.?.focal_point.position = pst.Position.init(.{}, .{});
+            window.?.focal_point.active_chunks = [_]pnt.Point3{.{.x = -1, .y = -1, .z = 0}} ** 25;
             fcs.updateFocalPoint(&window.?.focal_point);
+            window.?.camera.euclid.quaternion = @Vector(4, f32){0,0,0,1};
         }
 
     }
@@ -135,7 +127,7 @@ pub fn ignite() void {
 /// Shuts down the engine, deinitializes systems, and frees memory
 pub fn douse() void {
 
-    wnd.destroyWindowGroup();
+    wnd.deinitWindowGroup();
     sdl.SDL_Quit();
 }
 
@@ -173,12 +165,13 @@ pub fn runEngine() bool
     if (evs.matchKeyState(sdl.SDL_SCANCODE_ESCAPE, evs.InputStates.down))
         setEngineStateFlag(EngineFlag.ef_quitflag);
 
-    // render
-    //for(wnd.getWindowGroup()) |window|
-        //rnd.renderWindow(&window);
+
+
+    //render
+    for(wnd.getWindowGroup()) |window|
+        rnd.renderWindow(window.?);
     
     
-    // wait, 
     // TODO replace with proper clock timing
     sdl.SDL_Delay(15);    
 

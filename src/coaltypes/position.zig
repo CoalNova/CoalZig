@@ -18,7 +18,7 @@ pub const Position = struct {
     z: i64 = 0,
     /// The dimensional index of the position
     pub inline fn index(self: Position) pnt.Point3 {
-        return .{ .x = @intCast(i32, (self.x >> 24)), .y = @intCast(i32, (self.y >> 28)), .z = @intCast(i32, (self.z >> 32)) };
+        return .{ .x = @truncate(i32, (self.x >> 24)), .y = @truncate(i32, (self.y >> 28)), .z = @truncate(i32, (self.z >> 32)) };
     }
 
     pub inline fn isX_Rounded(self : Position) bool {return (self.x & ((1<<24) - 1)) == 0;}

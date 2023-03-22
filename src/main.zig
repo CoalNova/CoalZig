@@ -24,13 +24,15 @@
 //! 
 //! 
 const std = @import("std");
+const zmt = @import("zmt");
 const sys = @import("coalsystem/coalsystem.zig");
 const stp = @import("coaltypes/setpiece.zig");
 const wnd = @import("coaltypes/window.zig");
 const chk = @import("coaltypes/chunk.zig");
 const pnt = @import("simpletypes/points.zig");
+const cam = @import("coaltypes/camera.zig");
 
-pub fn main() !void 
+pub fn main() void 
 {
     // Start system,
     sys.ignite();
@@ -39,16 +41,22 @@ pub fn main() !void
 
 
     const cube = stp.getSetpiece(.{});
-    
-    const window = wnd.getWindow(wnd.WindowType.hardware).?;
+    var camera : cam.Camera = undefined;
+    const window = wnd.getWindow(wnd.WindowCategory.hardware).?;
 
     stp_blk : for (window.focal_point.active_chunks) |index|
     {
         const focal_index : pnt.Point3 = window.focal_point.position.index();
         if (index.equals(focal_index))
         {
-            try chk.getChunk(index).?.setpieces.?.append(cube);
-            break : stp_blk;
+            var chunk = chk.getChunk(index);
+            if (chunk != null)
+            {
+                chunk.?.setpieces.?.append(cube) catch |err|
+                    std.debug.print("{}\n", .{err});
+                camera = window.camera;
+                break : stp_blk;
+            }
         }
     }
     
@@ -56,5 +64,41 @@ pub fn main() !void
     //main loop
     while(sys.runEngine())
     {
+        camera.euclid.quaternion = zmt.qmul(
+            camera.euclid.quaternion, 
+            zmt.quatFromRollPitchYaw(0, 0, 0.1));
+                
+        const angles = convMatToEul(camera.euclid.quaternion);
+        std.debug.print("x:{d:.4}, y:{d:.4}, z:{d:.4}\n", 
+            .{angles[0] / (std.math.pi * 0.5), angles[1] / (std.math.pi * 0.5), angles[2] * (90.0 / (std.math.pi * 0.5))});
     }
+}
+
+fn convMatToEul(q : @Vector(4, f32)) @Vector(3, f32)
+{
+    var angles = @Vector(3, f32){0,0,0};    //yaw pitch roll
+    const x = q[0];
+    const y = q[1];
+    const z = q[2];
+    const w = q[3];
+
+    // roll (x-axis rotation)
+    const sinr_cosp = 2 * (w * x + y * z);
+    const cosr_cosp = 1 - 2 * (x * x + y * y);
+    angles[0] = std.math.atan2(f32, sinr_cosp, cosr_cosp);
+
+    // pitch (y-axis rotation)
+    var sinp : f32 = 2 * (w * y - z * x);
+    if ( @fabs(sinp) >= 1)
+    {
+        angles[1] = std.math.copysign(@as(f32, std.math.pi / 2.0), sinp); // use 90 degrees if out of range
+    }
+    else
+        angles[1] = std.math.asin(sinp);
+
+    // yaw (z-axis rotation)
+    const siny_cosp = 2 * (w * z + x * y);
+    const cosy_cosp = 1 - 2 * (y * y + z * z);
+    angles[2] = std.math.atan2(f32, siny_cosp, cosy_cosp);
+    return angles;
 }

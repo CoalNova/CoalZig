@@ -17,6 +17,7 @@ pub const Mesh = struct {
     vio : u32 = 0,
     vertex_size : usize = 1,
     drawstyle_enum : u32 = 0,
+    num_elements : i32 = 0,
     static : bool = false
 };
 
@@ -54,11 +55,25 @@ fn loadMesh(mesh_id : u32) ?Mesh
     mesh.material = mtl.checkoutMaterial(@intCast(u16, mesh_id));
     
     zgl.genVertexArrays(1, &mesh.vao);
-    zgl.bindVertexArray(mesh.vao);
     zgl.genBuffers(1, &mesh.vbo);
     zgl.genBuffers(1, &mesh.ibo);
     zgl.genBuffers(1, &mesh.vio);
-    
+
+    //TODO not the debug cube
+    mesh.drawstyle_enum = zgl.POINTS;
+    zgl.bindVertexArray(mesh.vao);
+    zgl.bindBuffer(zgl.ARRAY_BUFFER, mesh.vbo);
+    zgl.bindBuffer(zgl.ELEMENT_ARRAY_BUFFER, mesh.ibo);
+    const buff_data : u32 = 1;
+    zgl.bufferData(zgl.ARRAY_BUFFER, @sizeOf(u32), &buff_data, zgl.STATIC_DRAW);
+    zgl.bufferData(zgl.ELEMENT_ARRAY_BUFFER, @sizeOf(u32), &buff_data, zgl.STATIC_DRAW);
+    zgl.vertexAttribPointer(1, @sizeOf(u32), zgl.FLOAT, 0, @sizeOf(u32), null);
+    zgl.enableVertexAttribArray(1);
+
+
+
+    mesh.num_elements = 1;
+
     meshes.?.append(mesh) catch |err| {
         std.debug.print("{}\n", .{err});
         rpt.logReportInit(@enumToInt(rpt.ReportCatagory.level_error), 
