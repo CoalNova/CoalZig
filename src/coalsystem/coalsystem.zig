@@ -10,6 +10,7 @@
 //! 
 
 pub const glw = @cImport({@cInclude("GL/glew.h");});
+pub const glm = @cImport({@cInclude("cglm/cglm.h");});
 pub const sdl = @cImport({@cInclude("SDL2/SDL.h");});
 const std = @import("std");
 const alc = @import("../coalsystem/allocationsystem.zig");

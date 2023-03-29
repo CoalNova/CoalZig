@@ -36,6 +36,9 @@ pub fn build(b: *std.Build) void {
         exe.addIncludePath("libs\\glew\\include");
         exe.addLibraryPath("libs\\glew\\lib");
         b.installBinFile("libs\\glew\\bin\\glew32.dll", "glew32.dll");
+        exe.addIncludePath("libs\\cglm\\include");
+        exe.addLibraryPath("libs\\cglm\\lib");
+        b.installBinFile("libs\\cglm\\bin\\glew32.dll", "glew32.dll");
         exe.linkSystemLibrary("opengl32");
     } else {
         std.debug.print("Building in a Linux environment\n", .{});
@@ -43,10 +46,14 @@ pub fn build(b: *std.Build) void {
     }
     exe.linkSystemLibrary("c");
     exe.linkSystemLibrary("SDL2");
+    exe.linkSystemLibrary("cglm");
 
     //ZMATH
-    const zmt_pkg = zmt.Package.build(b, .{});
-    const zgl_pkg = zgl.Package.build(b, .{});
+    const zmt_pkg = zmt.package(b, target, optimize, .{
+        .options = .{ .enable_cross_platform_determinism = true },
+    });        
+    const zgl_pkg = zgl.package(b, target, optimize, .{});
+
     exe.addModule("zmt", zmt_pkg.zmath);
     exe.addModule("zgl", zgl_pkg.zopengl);
 

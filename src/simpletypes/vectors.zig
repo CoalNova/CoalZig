@@ -44,6 +44,11 @@ pub const Vector3 = struct {
     pub inline fn vectorDot(a: Vector3, b: Vector3) f32 {
         return a.x * b.x + a.y * b.y + a.z * b.z;
     }
+
+    pub inline fn normalized(self: Vector3) Vector3 {
+        const magnitude = @sqrt(self.x * self.x + self.y * self.y + self.z * self.z);
+        return if (magnitude == 0.0) self else .{ .x = self.x / magnitude, .y = self.y / magnitude, .z = self.z / magnitude };
+    }
 };
 
 /// Four-part Vector, not to be confused with the SIMD @Vector or std::vector<>

@@ -8,6 +8,10 @@ pub const GLSError = error{
     GLValueOoB
 }; 
 
+pub var max2DTexArrayLayers : i32 = 0;
+pub var maxTexBindingPoints : i32 = 0;
+     
+
 pub fn initalizeGL() !void
 {
 
@@ -16,4 +20,15 @@ pub fn initalizeGL() !void
         std.debug.print("GL initialization failed\n", .{});
         return GLSError.GLInitFailed;
     };
+
+    zgl.polygonMode(zgl.FRONT_AND_BACK, zgl.FILL);
+    zgl.enable(zgl.DEPTH_TEST);
+    zgl.enable(zgl.BLEND);
+    zgl.blendFunc(zgl.SRC_ALPHA, zgl.ONE_MINUS_SRC_ALPHA);
+    zgl.depthFunc(zgl.LESS);
+    zgl.clearColor(0.01, 0.0, 0.02, 1.0);
+
+
+    zgl.getIntegerv(zgl.MAX_ARRAY_TEXTURE_LAYERS, &max2DTexArrayLayers);
+    zgl.getIntegerv(zgl.MAX_TEXTURE_IMAGE_UNITS, &maxTexBindingPoints);
 }
