@@ -45,16 +45,13 @@ pub const Camera = struct {
 
         self.view_matrix = zmt.lookAtRh(
             cam_pos,
-            self.forward,
+            cam_pos + self.forward,
             self.upward,
         );
 
         self.projection_matrix =
-            zmt.perspectiveFovRh(self.fov, @intToFloat(f32, window.size.x) / @intToFloat(f32, window.size.y), self.near_plane, self.far_plane);
-        //glm::perspective(glm::radians(cam->fov), ((float)cam->screenSize.x / cam->screenSize.y), cam->nearPlane, cam->farPlane);
-        //self.bublMatrix = cam->lodPMatrix * glm::lookAt(glm::vec3(0.0f, 0.0f, 0.0f), front, up);
-        self.mvp_matrix = zmt.mul(self.projection_matrix, self.view_matrix);
-        //self.mvpLODMatrix = cam->lodPMatrix * cam->viewMatrix;
+            zmt.perspectiveFovRhGl(self.fov, @intToFloat(f32, window.size.x) / @intToFloat(f32, window.size.y), self.near_plane, self.far_plane);
 
+        self.mvp_matrix = zmt.mul(self.view_matrix, self.projection_matrix);
     }
 };

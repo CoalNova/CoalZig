@@ -8,6 +8,7 @@ const rpt = @import("../coaltypes/report.zig");
 const chk = @import("../coaltypes/chunk.zig");
 const cam = @import("../coaltypes/camera.zig");
 const vct = @import("../simpletypes/vectors.zig");
+const pst = @import("../coaltypes/position.zig");
 const sdl = sys.sdl;
 const cat = rpt.ReportCatagory;
 
@@ -34,12 +35,19 @@ fn renderHardware(window: *wnd.Window) void {
     _ = sdl.SDL_GetWindowSize(window.sdl_window, @ptrCast([*c]c_int, &window.size.x), @ptrCast([*c]c_int, &window.size.y));
     zgl.viewport(0, 0, window.size.x, window.size.y);
 
+    //for every active chunk index listed to the focal point
     for (window.focal_point.active_chunks) |chunk_index| {
-        const chunk = chk.getChunk(chunk_index);
-        if (chunk != null) {
-            if (chunk.?.setpieces != null) {
-                for (chunk.?.setpieces.?.items) |setpiece| {
-                    renderHardwareDynamicSetpiece(window.camera, setpiece);
+        //check that they aren't too far away
+        const diff = window.focal_point.position.index().differenceAbs(chunk_index);
+        if (diff.x < 2 and diff.y < 2 and diff.z < 1) {
+            //get the chunk
+            if (chk.getChunk(chunk_index) != null) {
+                const chunk = chk.getChunk(chunk_index).?;
+
+                if (chunk.setpieces != null) {
+                    for (chunk.setpieces.?.items) |setpiece| {
+                        renderHardwareDynamicSetpiece(window.camera, setpiece);
+                    }
                 }
             }
         }
@@ -59,25 +67,38 @@ fn renderTextware(window: *const wnd.Window) void {
 
 fn renderHardwareDynamicSetpiece(camera: cam.Camera, setpiece: stp.Setpiece) void {
     const mesh = setpiece.mesh;
-
-    // const model: zmt.Mat = [_]@Vector(4, f32){
-    //     @Vector(4, f32){ 0.5, 0.0, 0.0, 0.0 },
-    //     @Vector(4, f32){ 0.0, 0.5, 0.0, 0.0 },
-    //     @Vector(4, f32){ 0.0, 0.0, 0.5, 0.0 },
-    //     @Vector(4, f32){ 0.0, 0.0, 0.0, 1.0 },
-    //};
-
     const model =
-        zmt.mul(zmt.translation(0, 0, 1), zmt.mul(zmt.matFromQuat(setpiece.euclid.quaternion), zmt.scaling(1, 1, 1)));
+        zmt.mul(zmt.translation(0, 0, -1), zmt.mul(zmt.matFromQuat(setpiece.euclid.quaternion), zmt.scaling(1, 1, 1)));
 
     const mvp: zmt.Mat =
-        zmt.mul(camera.mvp_matrix, model);
+        zmt.mul(model, camera.mvp_matrix);
 
     zgl.useProgram(mesh.material.shader.program);
     //bind mesh
     zgl.bindVertexArray(mesh.vao);
+
+    //TODO uniform blasting (possibly bounds checked?)
     //assign uniforms
     zgl.uniformMatrix4fv(mesh.material.shader.mtx_name, 1, zgl.FALSE, &mvp[0][0]);
     //draw
+    zgl.drawElements(mesh.drawstyle_enum, mesh.num_elements, zgl.UNSIGNED_INT, null);
+}
+
+fn renderTerrain(chunk: *chk.Chunk, camera: cam.Camera) void {
+    if (chunk.mesh == null) {
+        const category = @enumToInt(cat.level_warning) | @enumToInt(cat.renderer);
+        rpt.logReportInit(category, 201, [4]i32{ chunk.index.x, chunk.index.y, chunk.index.z, 0 });
+        return;
+    }
+    const diff = chunk.index.difference(camera.euclid.position.index());
+    const mesh = chunk.mesh.?;
+    const model = zmt.mul(zmt.translation(diff.x * 1024.0, diff.y * 1024, 0), zmt.scaling(1, 1, 1));
+
+    const mvp: zmt.Mat =
+        zmt.mul(model, camera.mvp_matrix);
+
+    zgl.useProgram(mesh.material.shader.program);
+    zgl.bindVertexArray(mesh.vao);
+    zgl.uniformMatrix4fv(mesh.material.shader.mtx_name, 1, zgl.FALSE, &mvp[0][0]);
     zgl.drawElements(mesh.drawstyle_enum, mesh.num_elements, zgl.UNSIGNED_INT, null);
 }

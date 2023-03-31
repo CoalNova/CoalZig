@@ -1,3 +1,5 @@
+const std = @import("std");
+
 /// Two-part integral vector, good for indexing
 pub const Point2 = struct {
     x: i32 = 0,
@@ -23,11 +25,29 @@ pub const Point3 = struct {
     pub inline fn init(x: i32, y: i32, z: i32) Point3 {
         return .{ .x = x, .y = y, .z = z };
     }
+    /// Addition
     pub inline fn add(self: Point3, point: Point3) Point3 {
         return init(self.x + point.x, self.y + point.y, self.z + point.z);
     }
+    /// Equals
     pub inline fn equals(self: Point3, point: Point3) bool {
         return self.x == point.x and self.y == point.y and self.z == point.z;
+    }
+    /// Returns difference in indices, as absolute values
+    pub inline fn differenceAbs(self: Point3, other: Point3) Point3 {
+        return .{
+            .x = @intCast(i32, std.math.absCast(self.x - other.x)),
+            .y = @intCast(i32, std.math.absCast(self.y - other.y)),
+            .z = @intCast(i32, std.math.absCast(self.z - other.z)),
+        };
+    }
+    /// Returns difference in indices, as other from self
+    pub inline fn difference(self: Point3, other: Point3) Point3 {
+        return .{
+            .x = self.x - other.x,
+            .y = self.y - other.y,
+            .z = self.z - other.z,
+        };
     }
 };
 

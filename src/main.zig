@@ -61,40 +61,33 @@ pub fn main() void {
 
     //main loop
     while (sys.runEngine()) {
-        //camera.euclid.quaternion = zmt.qmul(camera.euclid.quaternion, zmt.quatFromRollPitchYaw(0.0, 0.0, 0.01));
+        var new_x: f32 = 0;
+        var new_y: f32 = 0;
+        var rot_x: f32 = 0;
+        var rot_y: f32 = 0;
+        var rot_z: f32 = 0;
 
-        const angles = cms.convQuatToEul(camera.euclid.quaternion);
-        std.debug.print("x:{d:.4}, y:{d:.4}, z:{d:.4}\n", .{ angles[0] / (std.math.pi * 0.5), angles[1] / (std.math.pi * 0.5), angles[2] * (90.0 / (std.math.pi * 0.5)) });
-        std.debug.print("x:{d:.4}, y:{d:.4}, z:{d:.4} w:{d:.4}\n", .{ camera.forward[0], camera.forward[1], camera.forward[2], camera.forward[3] });
-        std.debug.print("{}\n", .{camera.euclid.position.x & ((1 << 28) - 1)});
-        std.debug.print("x:{d:.4}, y:{d:.4}, z:{d:.4}\n", .{ camera.euclid.position.axial().x, camera.euclid.position.axial().y, camera.euclid.position.axial().z });
-        for (camera.view_matrix) |row|
-            std.debug.print("[{d:.3},{d:.3},{d:.3},{d:.3}]\n", .{ row[0], row[1], row[2], row[3] });
-        std.debug.print("\n", .{});
+        if (evs.getKeyHeld(sys.sdl.SDL_SCANCODE_W)) new_y = 0.1;
+        if (evs.getKeyHeld(sys.sdl.SDL_SCANCODE_A)) new_x = -0.1;
+        if (evs.getKeyHeld(sys.sdl.SDL_SCANCODE_S)) new_y = -0.1;
+        if (evs.getKeyHeld(sys.sdl.SDL_SCANCODE_D)) new_x = 0.1;
 
-        var new_x: f32 = 0.0;
-        var new_y: f32 = 0.0;
+        if (evs.getKeyHeld(sys.sdl.SDL_SCANCODE_L)) rot_z += 0.03;
+        if (evs.getKeyHeld(sys.sdl.SDL_SCANCODE_J)) rot_z -= 0.03;
+        if (evs.getKeyHeld(sys.sdl.SDL_SCANCODE_I)) rot_x -= 0.03;
+        if (evs.getKeyHeld(sys.sdl.SDL_SCANCODE_K)) rot_x += 0.03;
+        if (evs.getKeyHeld(sys.sdl.SDL_SCANCODE_Q)) rot_y += 0.03;
+        if (evs.getKeyHeld(sys.sdl.SDL_SCANCODE_E)) rot_y -= 0.03;
 
-        if (evs.getKeyHeld(sys.sdl.SDL_SCANCODE_W)) {
-            std.debug.print("W", .{});
-            new_y = 0.1;
-        }
+        var cam_rot = cms.convQuatToEul(camera.euclid.quaternion);
 
-        if (evs.getKeyHeld(sys.sdl.SDL_SCANCODE_A)) {
-            std.debug.print("A", .{});
-            new_x = -0.1;
-        }
-
-        if (evs.getKeyHeld(sys.sdl.SDL_SCANCODE_S)) {
-            std.debug.print("S", .{});
-            new_y = -0.1;
-        }
-
-        if (evs.getKeyHeld(sys.sdl.SDL_SCANCODE_D)) {
-            std.debug.print("D", .{});
-            new_x = 0.1;
-        }
-
-        camera.euclid.position = camera.euclid.position.addAxial(.{ .x = new_x, .y = new_y, .z = 0 });
+        camera.euclid.position =
+            camera.euclid.position.addAxial(.{
+            .x = new_x * @cos(cam_rot[2]) + new_y * @sin(cam_rot[2]),
+            .y = new_y * @cos(cam_rot[2]) - new_x * @sin(cam_rot[2]),
+            .z = 0,
+        });
+        camera.euclid.quaternion =
+            zmt.qmul(camera.euclid.quaternion, zmt.quatFromRollPitchYaw(rot_x, rot_y, rot_z));
     }
 }

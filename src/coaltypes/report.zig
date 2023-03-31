@@ -1,5 +1,5 @@
 //! Report handles the internal engine logging
-//! 
+//!
 //!     For now it only recieves reports and stores them, will eventually
 //! output a log file on exit.
 
@@ -57,18 +57,17 @@ pub const Report = struct {
 
 // bitmask filter for what issues to print to output stream
 pub var report_print_mask: u32 = 14;
-var report_log : []Report = undefined;
+var report_log: []Report = undefined;
 var report_count: usize = 0;
 
-pub fn initLog() !void 
-{
+pub fn initLog() !void {
     report_log = try alc.gpa_allocator.alloc(Report, 32);
 }
 
 pub fn logReport(report: Report) void {
     if (report_count >= report_log.len) {
-        var new_log : []Report = alc.gpa_allocator.alloc(Report, report_log.len * 2) catch
-        {
+        var new_log: []Report = alc.gpa_allocator.alloc(Report, report_log.len * 2) catch
+            {
             std.debug.print("Unable to print to stream writer\n", .{});
             return;
         };
@@ -82,14 +81,12 @@ pub fn logReport(report: Report) void {
         printReport(report);
 }
 
-pub fn logReportInit(cat: u16, mssg: u32, rel_data: [4]i32) void
-{
+pub fn logReportInit(cat: u16, mssg: u32, rel_data: [4]i32) void {
     logReport(Report.init(cat, mssg, rel_data, sys.getEngineTick()));
 }
 
 pub fn printReport(report: Report) void {
-
-    _ = report;
+    std.debug.print("a thing occurred {} {} {}\n", .{ report.catagory, report.engine_tick, report.message });
     //TODO
 }
 
@@ -112,6 +109,7 @@ pub fn getMessageString(message_index: u16) []u8 {
         61 => return "GLEW failed initialization",
         81 => return "Failed appending mesh",
         101 => return "Unable to allocate memory",
+        201 => return "Attempted to render a chunk whose mesh null",
         else => return "Report text not yet implemented",
     }
     unreachable;

@@ -26,7 +26,6 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
     });
 
-    
     // OS version check for linking while developing on seperate platforms
     if (target.isWindows()) {
         std.debug.print("Building in a Windows environment\n", .{});
@@ -46,17 +45,16 @@ pub fn build(b: *std.Build) void {
     }
     exe.linkSystemLibrary("c");
     exe.linkSystemLibrary("SDL2");
-    exe.linkSystemLibrary("cglm");
+    //exe.linkSystemLibrary("cglm");
 
     //ZMATH
     const zmt_pkg = zmt.package(b, target, optimize, .{
         .options = .{ .enable_cross_platform_determinism = true },
-    });        
+    });
     const zgl_pkg = zgl.package(b, target, optimize, .{});
 
     exe.addModule("zmt", zmt_pkg.zmath);
     exe.addModule("zgl", zgl_pkg.zopengl);
-
 
     exe.install();
 

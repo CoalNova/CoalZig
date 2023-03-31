@@ -41,7 +41,7 @@ pub const Position = struct {
     }
 
     pub inline fn round(self: Position) Position {
-        var p = .{};
+        var p = Position{};
         p.x = self.x ^ (self.x & (((1 << lat_major) - 1) << lat_minor));
         p.y = self.y ^ (self.y & (((1 << lat_major) - 1) << lat_minor));
         p.z = self.z ^ (self.z & (((1 << vrt_major) - 1) << vrt_minor));
@@ -91,8 +91,12 @@ pub const Position = struct {
     }
 
     pub inline fn squareDistance(self: Position, to_dist: Position) f32 {
-        var _a = self.axial();
-        var _b = self.axial() + .{ .x = (self.index().x - to_dist.index().x) * 1024.0, .y = (self.index().y - to_dist.index().y) * 1024.0, .z = 0 };
+        const _a = self.axial();
+        const _b = .{
+            .x = _a.x + @intToFloat(f32, self.index().x - to_dist.index().x) * 1024.0,
+            .y = _a.y + @intToFloat(f32, self.index().y - to_dist.index().y) * 1024.0,
+            .z = 0,
+        };
         return (_a.x - _b.x) * (_a.x - _b.x) + (_a.y - _b.y) * (_a.y - _b.y);
     }
 };
