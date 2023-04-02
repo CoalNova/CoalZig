@@ -82,9 +82,8 @@ pub const Chunk = struct {
     index: pst.pnt.Point3 = .{ .x = 0, .y = 0, .z = 0 },
     heights: []u16 = undefined,
     height_mod: u8 = 0,
-    setpieces: ?std.ArrayList(stp.Setpiece) = null,
+    setpieces: std.ArrayList(stp.Setpiece) = undefined,
     mesh: ?*msh.Mesh = null,
-    loaded: bool = false,
 };
 
 /// Chunk map
@@ -93,7 +92,20 @@ var map_bounds: pst.pnt.Point3 = .{ .x = 0, .y = 0, .z = 0 };
 
 pub fn initializeChunkMap(allocator: std.mem.Allocator, bounds: pst.pnt.Point3) !void {
     map_bounds = bounds;
+    const b_x = @intCast(usize, bounds.x);
+    const b_y = @intCast(usize, bounds.y);
     chunk_map = try allocator.alloc(Chunk, @intCast(usize, bounds.x * bounds.y));
+    for (0..b_y) |y| {
+        for (0..b_x) |x| {
+            chunk_map[x + y * b_x] = .{
+                .index = .{ .x = @intCast(i32, @mod(x, b_x)), .y = @intCast(i32, y / b_x), .z = 0 },
+                .heights = undefined,
+                .height_mod = 0,
+                .setpieces = undefined,
+                .mesh = null,
+            };
+        }
+    }
 }
 
 pub inline fn indexIsMapValid(index: pst.pnt.Point3) bool {
@@ -139,7 +151,6 @@ pub fn loadChunk(chunk_index: pst.pnt.Point3) void {
     errdefer chunk.setpieces.?.deinit();
     //TODO handle setpiece loading
 
-    chunk.loaded = true;
 }
 
 pub fn unloadChunk(chunk_index: pst.pnt.Point3) void {
@@ -152,16 +163,18 @@ pub fn unloadChunk(chunk_index: pst.pnt.Point3) void {
 
     chunk.height_mod = 0;
 
-    if (chunk.setpieces != null) {
-        chunk.setpieces.?.deinit();
-        chunk.setpieces = null;
-    }
-
-    chunk.loaded = false;
+    chunk.setpieces.deinit();
 }
 
 // this is where the fun begins
 pub fn getHeight(position: pst.Position) f32 {
+    const pos_axial = position.axial();
+    const pos_absol = pst.pnt.Point3{
+        .x = @floatToInt(i32, pos_axial.x),
+        .y = @floatToInt(i32, pos_axial.y),
+        .z = @floatToInt(i32, pos_axial.z),
+    };
+    //const pos_index = position.index();
 
     //check if requested position is rounded
     if (position.isX_Rounded() and position.isY_Rounded()) {
@@ -172,10 +185,10 @@ pub fn getHeight(position: pst.Position) f32 {
 
             const chunk = getChunk(position.index()).?;
 
-            if (!chunk.loaded)
+            if (chunk.heights.len == 0)
                 return 0.0;
 
-            const index = @intCast(usize, (position.x >> 1) + (position.y >> 1) * 512);
+            const index = @intCast(usize, (pos_absol.x >> 1) + (pos_absol.y >> 1) * 512);
 
             return @intToFloat(f32, chunk.heights[index]) * 0.1 +
                 @intToFloat(f32, (@as(u32, chunk.height_mod) * 1024));

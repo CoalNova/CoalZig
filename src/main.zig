@@ -50,10 +50,10 @@ pub fn main() void {
         if (index.equals(focal_index)) {
             var chunk = chk.getChunk(index);
             if (chunk != null) {
-                chunk.?.setpieces.?.append(cube) catch |err|
+                chunk.?.setpieces.append(cube) catch |err|
                     std.debug.print("{}\n", .{err});
                 camera = &window.camera;
-                camera.euclid.position = pst.Position.init(.{ .x = 0, .y = 0, .z = 0 }, .{ .x = 0, .y = 0, .z = 0 });
+                camera.euclid.position = pst.Position.init(.{ .x = 0, .y = 0, .z = 0 }, .{ .x = 0, .y = 0, .z = 1 });
                 break :stp_blk;
             }
         }
@@ -72,12 +72,12 @@ pub fn main() void {
         if (evs.getKeyHeld(sys.sdl.SDL_SCANCODE_S)) new_y = -0.1;
         if (evs.getKeyHeld(sys.sdl.SDL_SCANCODE_D)) new_x = 0.1;
 
-        if (evs.getKeyHeld(sys.sdl.SDL_SCANCODE_L)) rot_z += 0.03;
-        if (evs.getKeyHeld(sys.sdl.SDL_SCANCODE_J)) rot_z -= 0.03;
-        if (evs.getKeyHeld(sys.sdl.SDL_SCANCODE_I)) rot_x -= 0.03;
-        if (evs.getKeyHeld(sys.sdl.SDL_SCANCODE_K)) rot_x += 0.03;
-        if (evs.getKeyHeld(sys.sdl.SDL_SCANCODE_Q)) rot_y += 0.03;
-        if (evs.getKeyHeld(sys.sdl.SDL_SCANCODE_E)) rot_y -= 0.03;
+        if (evs.getKeyHeld(sys.sdl.SDL_SCANCODE_L)) rot_z += 0.04;
+        if (evs.getKeyHeld(sys.sdl.SDL_SCANCODE_J)) rot_z -= 0.04;
+        if (evs.getKeyHeld(sys.sdl.SDL_SCANCODE_I)) rot_x -= 0.04;
+        if (evs.getKeyHeld(sys.sdl.SDL_SCANCODE_K)) rot_x += 0.04;
+        if (evs.getKeyHeld(sys.sdl.SDL_SCANCODE_Q)) rot_y += 0.04;
+        if (evs.getKeyHeld(sys.sdl.SDL_SCANCODE_E)) rot_y -= 0.04;
 
         var cam_rot = cms.convQuatToEul(camera.euclid.quaternion);
 

@@ -104,7 +104,6 @@ pub fn constructBaseTerrainMesh(chunk: *chk.Chunk, focal_point: *fcs.Focus) void
     zgl.genVertexArrays(1, &mesh.vao);
     zgl.genBuffers(1, &mesh.vbo);
     zgl.genBuffers(1, &mesh.ibo);
-    zgl.genBuffers(1, &mesh.vio);
 
     zgl.bindVertexArray(mesh.vao);
     zgl.bindBuffer(zgl.ARRAY_BUFFER, mesh.vbo);
@@ -137,7 +136,7 @@ pub fn constructBaseTerrainMesh(chunk: *chk.Chunk, focal_point: *fcs.Focus) void
                 return rpt.logReportInit(app_cat, 101, [4]i32{ 0, 0, 0, 0 });
         };
 
-    zgl.bufferData(zgl.ARRAY_BUFFER, @sizeOf(f32) * 1025 * 1025, @ptrCast(?*const anyopaque, &vbo.items), zgl.STATIC_DRAW);
+    zgl.bufferData(zgl.ARRAY_BUFFER, @intCast(isize, @sizeOf(f32) * vbo.items.len), @ptrCast(?*const anyopaque, vbo.items), zgl.STATIC_DRAW);
 
     //void glVertexAttribPointer(GLuint index, GLint size, GLenum type, GLboolean normalized, GLsizei stride, const void * pointer);
     zgl.vertexAttribPointer(1, @sizeOf(f32), zgl.FLOAT, 0, @sizeOf(f32) * 2, null);
@@ -146,6 +145,26 @@ pub fn constructBaseTerrainMesh(chunk: *chk.Chunk, focal_point: *fcs.Focus) void
     zgl.enableVertexAttribArray(2);
 
     updateTerrainMeshResolution(chunk, focal_point);
+    std.debug.print("program {}, err {}\n", .{ mesh.material.shader.program, zgl.getError() });
+}
+
+pub fn updateTerrainMeshResolution(chunk: *chk.Chunk, focal_point: *fcs.Focus) void {
+    var new_ibo = std.ArrayList(u32).init(alc.gpa_allocator);
+    defer new_ibo.deinit();
+
+    terrainMeshResolutionSubRun(chunk, focal_point, &new_ibo, 0, 0, 256, 3);
+
+    if (chunk.mesh.?.ibo != 0) {
+        //delete ibo
+        zgl.deleteBuffers(1, &chunk.mesh.?.ibo);
+    }
+
+    chunk.mesh.?.num_elements = @intCast(i32, new_ibo.items.len);
+
+    //generate and attach ibo
+    zgl.genBuffers(1, &chunk.mesh.?.ibo);
+    zgl.bindBuffer(zgl.ELEMENT_ARRAY_BUFFER, chunk.mesh.?.ibo);
+    zgl.bufferData(zgl.ELEMENT_ARRAY_BUFFER, @intCast(isize, @sizeOf(u32) * new_ibo.items.len), @ptrCast(?*const anyopaque, new_ibo.items), zgl.STATIC_DRAW);
 }
 
 fn terrainMeshResolutionSubRun(chunk: *chk.Chunk, focal_point: *fcs.Focus, new_ibo: *std.ArrayList(u32), cur_x: usize, cur_y: usize, stride: usize, ring_index: i32) void {
@@ -173,23 +192,4 @@ fn terrainMeshResolutionSubRun(chunk: *chk.Chunk, focal_point: *fcs.Focus, new_i
                 new_ibo.append(@truncate(u32, index + stride * width)) catch return;
             }
         };
-}
-
-pub fn updateTerrainMeshResolution(chunk: *chk.Chunk, focal_point: *fcs.Focus) void {
-    var new_ibo = std.ArrayList(u32).init(alc.gpa_allocator);
-    defer new_ibo.deinit();
-
-    terrainMeshResolutionSubRun(chunk, focal_point, &new_ibo, 0, 0, 256, 3);
-
-    if (chunk.mesh.?.ibo != 0) {
-        //delete ibo
-        zgl.deleteBuffers(1, &chunk.mesh.?.ibo);
-    }
-
-    chunk.mesh.?.num_elements = @intCast(i32, new_ibo.items.len);
-
-    //generate and attach ibo
-    zgl.genBuffers(1, &chunk.mesh.?.ibo);
-    zgl.bindBuffer(zgl.ELEMENT_ARRAY_BUFFER, chunk.mesh.?.ibo);
-    zgl.bufferData(zgl.ELEMENT_ARRAY_BUFFER, @intCast(isize, @sizeOf(u32) * new_ibo.items.len), @ptrCast(?*const anyopaque, &new_ibo.items), zgl.STATIC_DRAW);
 }

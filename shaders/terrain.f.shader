@@ -6,7 +6,7 @@ in vec3 fNrm;
 
 out vec4 oColor;
 
-main()
+void main()
 {
     oColor = vec4(fUV.x * 0.5f + fNrm.x, fUV.y * 0.5f + fNrm.y, fNrm.z, 1.0f);
 }

@@ -10,16 +10,16 @@ const float norm_div = 1 / 512;
 
 out vec4 gPos;
 out vec3 gNrm;
-out vec2 gcrd;
+out vec2 gCrd;
 out float gZne;
-out flat int gSkp;
+flat out int gSkp;
 
 
 uniform mat4 mvp;
 
-main()
+void main()
 {
-    const float 
+    float 
         x = (superVert >> 11) & 2047,
         y = superVert & 2047,
         z = ((superZone >> 14) & ((1 << 17) - 1)) * 0.1f,

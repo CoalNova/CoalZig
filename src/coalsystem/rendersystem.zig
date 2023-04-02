@@ -43,9 +43,9 @@ fn renderHardware(window: *wnd.Window) void {
             //get the chunk
             if (chk.getChunk(chunk_index) != null) {
                 const chunk = chk.getChunk(chunk_index).?;
-
-                if (chunk.setpieces != null) {
-                    for (chunk.setpieces.?.items) |setpiece| {
+                renderTerrain(chunk, window.camera);
+                if (chunk.setpieces.items.len > 0) {
+                    for (chunk.setpieces.items) |setpiece| {
                         renderHardwareDynamicSetpiece(window.camera, setpiece);
                     }
                 }
@@ -67,8 +67,9 @@ fn renderTextware(window: *const wnd.Window) void {
 
 fn renderHardwareDynamicSetpiece(camera: cam.Camera, setpiece: stp.Setpiece) void {
     const mesh = setpiece.mesh;
+    const axial = setpiece.euclid.position.axial();
     const model =
-        zmt.mul(zmt.translation(0, 0, -1), zmt.mul(zmt.matFromQuat(setpiece.euclid.quaternion), zmt.scaling(1, 1, 1)));
+        zmt.mul(zmt.translation(axial.x, axial.y, axial.z), zmt.mul(zmt.matFromQuat(setpiece.euclid.quaternion), zmt.scaling(1, 1, 1)));
 
     const mvp: zmt.Mat =
         zmt.mul(model, camera.mvp_matrix);
@@ -92,8 +93,9 @@ fn renderTerrain(chunk: *chk.Chunk, camera: cam.Camera) void {
     }
     const diff = chunk.index.difference(camera.euclid.position.index());
     const mesh = chunk.mesh.?;
-    const model = zmt.mul(zmt.translation(diff.x * 1024.0, diff.y * 1024, 0), zmt.scaling(1, 1, 1));
+    const model = zmt.mul(zmt.translation(@intToFloat(f32, diff.x) * 1024.0, @intToFloat(f32, diff.y) * 1024.0, 0), zmt.scaling(1, 1, 1));
 
+    var gl_err = zgl.getError();
     const mvp: zmt.Mat =
         zmt.mul(model, camera.mvp_matrix);
 
@@ -101,4 +103,7 @@ fn renderTerrain(chunk: *chk.Chunk, camera: cam.Camera) void {
     zgl.bindVertexArray(mesh.vao);
     zgl.uniformMatrix4fv(mesh.material.shader.mtx_name, 1, zgl.FALSE, &mvp[0][0]);
     zgl.drawElements(mesh.drawstyle_enum, mesh.num_elements, zgl.UNSIGNED_INT, null);
+
+    if (gl_err > 0)
+        std.debug.print("ibo buff err {}\n", .{gl_err});
 }

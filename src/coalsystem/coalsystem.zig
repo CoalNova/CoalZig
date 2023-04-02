@@ -24,6 +24,7 @@ const fcs = @import("../coaltypes/focus.zig");
 const chk = @import("../coaltypes/chunk.zig");
 const gls = @import("../coalsystem/glsystem.zig");
 const pst = @import("../coaltypes/position.zig");
+const shd = @import("../coaltypes/shader.zig");
 
 // The current tic of the engine,
 // used for logging and perhaps indescriminately timed occurances
@@ -42,8 +43,7 @@ pub var max_tex_layers: i32 = 0;
 pub var max_tex_binds: i32 = 0;
 
 pub fn ignite() void {
-    rpt.initLog() catch |err|
-        {
+    rpt.initLog() catch |err| {
         std.debug.print("initialization of report log failed {!}\n", .{err});
         setEngineStateFlag(EngineFlag.ef_quitflag);
         return;
@@ -71,6 +71,8 @@ pub fn ignite() void {
         setEngineStateFlag(EngineFlag.ef_quitflag);
         return;
     };
+
+    shd.initializeShaders();
 
     //construct windows
     win_blk: for (meta_header.window_init_types) |window_type| {
@@ -110,6 +112,7 @@ pub fn ignite() void {
 
 /// Shuts down the engine, deinitializes systems, and frees memory
 pub fn douse() void {
+    shd.deinitializeShaders();
     wnd.deinitWindowGroup();
     sdl.SDL_Quit();
 }

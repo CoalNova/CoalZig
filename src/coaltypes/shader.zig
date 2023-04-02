@@ -3,6 +3,7 @@ const sys = @import("../coalsystem/coalsystem.zig");
 const zgl = @import("zgl");
 const alc = @import("../coalsystem/allocationsystem.zig");
 const rpt = @import("../coaltypes/report.zig");
+const wrt = @import("../coalsystem/writersystem.zig");
 
 pub const Shader = struct {
     id: u32 = 0,
@@ -14,6 +15,7 @@ pub const Shader = struct {
 
     mtx_name: i32 = -1, // "matrix"
     mdl_name: i32 = -1, // "model"
+    pst_name: i32 = -1, // "position"
     cam_name: i32 = -1, // "camera"
     rot_name: i32 = -1, // "rotation"
     bnd_name: i32 = -1, // "bounds"
@@ -36,12 +38,19 @@ pub const Shader = struct {
 
 var shaders: std.ArrayList(Shader) = undefined;
 
+const ShaderSystemError = error{
+    VertexShaderCompilationError,
+    GeometryShaderCompilationError,
+    FragmentShaderCompilationError,
+    ShaderProgramLinkError,
+};
+
 pub fn initializeShaders() void {
-    shaders.init(alc.gpa_allocator);
+    shaders = std.ArrayList(Shader).init(alc.gpa_allocator);
 }
 
 pub fn deinitializeShaders() void {
-    for (shaders) |shader|
+    for (shaders.items) |shader|
         zgl.deleteProgram(shader.program);
     shaders.deinit();
 }
@@ -52,8 +61,6 @@ pub fn checkoutShader(shader_id: u32) Shader {
             shaders.items[index].subscribers += 1;
             return shader;
         };
-
-    //std.process.exit(0);
 
     return if (shader_id == 0) loadDebugCubeShader() else loadShader(shader_id) catch |err|
         {
@@ -67,8 +74,12 @@ pub fn checkinShader(shader: Shader) void {
     //unkown if shader program removal would be necessaary.
 }
 
-fn loadShaderModule(shader_name: []u8, program: u32, module_type: u32) !u32 {
-    var vert_file = try std.fs.cwd().openFile(shader_name, .{});
+fn loadShaderModule(file_prefix: std.ArrayList(u8), file_suffix: []const u8, program: u32, module_type: u32) !u32 {
+    var filename: std.ArrayList(u8) = try file_prefix.clone();
+    defer filename.deinit();
+    try filename.appendSlice(file_suffix);
+
+    var vert_file = try std.fs.cwd().openFile(filename.items, .{});
     defer vert_file.close();
 
     var shader_source = try alc.gpa_allocator.alloc(u8, (try vert_file.stat()).size + 1);
@@ -85,6 +96,34 @@ fn loadShaderModule(shader_name: []u8, program: u32, module_type: u32) !u32 {
     return module;
 }
 
+fn checkShaderError(
+    module: u32,
+    status: u32,
+    getIV: *const fn (c_uint, c_uint, [*c]c_int) callconv(.C) void,
+    getIL: *const fn (c_uint, c_int, [*c]c_int, [*c]i8) callconv(.C) void,
+) bool {
+    var is_error = false;
+    var result: i32 = 0;
+    var length: i32 = 0;
+    var info_log: []u8 = undefined;
+
+    getIV(module, status, &result);
+    getIV(module, zgl.INFO_LOG_LENGTH, &length);
+
+    if (length > 0) {
+        is_error = true;
+        info_log = alc.gpa_allocator.alloc(u8, @intCast(usize, length + 1)) catch {
+            rpt.logReportInit(@enumToInt(rpt.ReportCatagory.level_error) & @enumToInt(rpt.ReportCatagory.renderer) & @enumToInt(rpt.ReportCatagory.memory_allocation), 101, [4]i32{ @intCast(i32, module), result, 0, 0 });
+            return true;
+        };
+        defer alc.gpa_allocator.free(info_log);
+        getIL(module, length, null, @ptrCast([*c]i8, &info_log[0]));
+        wrt.print(info_log);
+    }
+
+    return is_error;
+}
+
 fn loadShader(shader_id: u32) !Shader {
     var shader: Shader = .{};
     shader.id = shader_id;
@@ -97,31 +136,41 @@ fn loadShader(shader_id: u32) !Shader {
     try filename.appendSlice("./shaders/");
     try filename.appendSlice(getShaderName(shader_id));
 
-    var vert_filename: std.ArrayList(u8) = try filename.clone();
-    defer vert_filename.deinit();
-    try vert_filename.appendSlice(".v.shader");
-    const vertex_module = try loadShaderModule(vert_filename.items, shader.program, zgl.VERTEX_SHADER);
-    defer zgl.deleteShader(vertex_module);
+    const vert_module = try loadShaderModule(filename, ".v.shader", shader.program, zgl.VERTEX_SHADER);
+    defer zgl.deleteShader(vert_module);
+    if (checkShaderError(vert_module, zgl.COMPILE_STATUS, zgl.getShaderiv, zgl.getShaderInfoLog)) {
+        rpt.logReportInit(@enumToInt(rpt.ReportCatagory.level_error) & @enumToInt(rpt.ReportCatagory.renderer), 151, [4]i32{ 0, 0, 0, 0 });
+        return ShaderSystemError.VertexShaderCompilationError;
+    }
 
-    var geom_filename: std.ArrayList(u8) = try filename.clone();
-    defer geom_filename.deinit();
-    try geom_filename.appendSlice(".g.shader");
-    const geometry_module = try loadShaderModule(geom_filename.items, shader.program, zgl.GEOMETRY_SHADER);
-    defer zgl.deleteShader(geometry_module);
+    const geom_module = try loadShaderModule(filename, ".g.shader", shader.program, zgl.GEOMETRY_SHADER);
+    defer zgl.deleteShader(geom_module);
+    if (checkShaderError(geom_module, zgl.COMPILE_STATUS, zgl.getShaderiv, zgl.getShaderInfoLog)) {
+        rpt.logReportInit(@enumToInt(rpt.ReportCatagory.level_error) & @enumToInt(rpt.ReportCatagory.renderer), 153, [4]i32{ 0, 0, 0, 0 });
+        return ShaderSystemError.GeometryShaderCompilationError;
+    }
 
-    var frag_filename: std.ArrayList(u8) = try filename.clone();
-    defer frag_filename.deinit();
-    try frag_filename.appendSlice(".f.shader");
-    const fragment_module = try loadShaderModule(frag_filename.items, shader.program, zgl.FRAGMENT_SHADER);
-    defer zgl.deleteShader(fragment_module);
+    const frag_module = try loadShaderModule(filename, ".f.shader", shader.program, zgl.FRAGMENT_SHADER);
+    defer zgl.deleteShader(frag_module);
+    if (checkShaderError(frag_module, zgl.COMPILE_STATUS, zgl.getShaderiv, zgl.getShaderInfoLog)) {
+        rpt.logReportInit(@enumToInt(rpt.ReportCatagory.level_error) & @enumToInt(rpt.ReportCatagory.renderer), 155, [4]i32{ 0, 0, 0, 0 });
+        return ShaderSystemError.FragmentShaderCompilationError;
+    }
 
     zgl.linkProgram(shader.program);
+
+    if (checkShaderError(shader.program, zgl.LINK_STATUS, zgl.getProgramiv, zgl.getProgramInfoLog)) {
+        rpt.logReportInit(@enumToInt(rpt.ReportCatagory.level_error) & @enumToInt(rpt.ReportCatagory.renderer), 157, [4]i32{ 0, 0, 0, 0 });
+        return ShaderSystemError.ShaderProgramLinkError;
+    }
+
     zgl.useProgram(shader.program);
 
     shader.mtx_name = zgl.getUniformLocation(shader.program, @ptrCast([*c]const i8, "matrix\x00"));
     shader.mdl_name = zgl.getUniformLocation(shader.program, @ptrCast([*c]const i8, "model\x00"));
     shader.cam_name = zgl.getUniformLocation(shader.program, @ptrCast([*c]const i8, "camera\x00"));
     shader.rot_name = zgl.getUniformLocation(shader.program, @ptrCast([*c]const i8, "rotation\x00"));
+    shader.pst_name = zgl.getUniformLocation(shader.program, @ptrCast([*c]const i8, "position\x00"));
     shader.bnd_name = zgl.getUniformLocation(shader.program, @ptrCast([*c]const i8, "bounds\x00"));
     shader.ind_name = zgl.getUniformLocation(shader.program, @ptrCast([*c]const i8, "index\x00"));
     shader.str_name = zgl.getUniformLocation(shader.program, @ptrCast([*c]const i8, "stride\x00"));
@@ -152,10 +201,6 @@ fn getShaderName(shader_id: u32) []const u8 {
 }
 
 fn loadDebugCubeShader() Shader {
-    var info_log: []u8 = undefined;
-    var result: i32 = 0;
-    var info_length: i32 = 0;
-
     var shader: Shader = .{};
     shader.program = zgl.createProgram();
     zgl.useProgram(shader.program);
@@ -166,22 +211,7 @@ fn loadDebugCubeShader() Shader {
     zgl.compileShader(vert_module);
     zgl.attachShader(shader.program, vert_module);
 
-    zgl.getShaderiv(vert_module, zgl.COMPILE_STATUS, &result);
-    zgl.getShaderiv(vert_module, zgl.INFO_LOG_LENGTH, &info_length);
-    log_blk: {
-        if (info_length > 0) {
-            info_log = alc.gpa_allocator.alloc(u8, @intCast(usize, info_length + 1)) catch |err|
-                {
-                std.debug.print("{}\n", .{err});
-                break :log_blk;
-            };
-            defer alc.gpa_allocator.free(info_log);
-            zgl.getShaderInfoLog(vert_module, info_length, null, @ptrCast([*c]i8, &info_log[0]));
-            std.debug.print("Vertex: {} {} \n{s}\n", .{ vert_module, info_length, info_log });
-            result = 0;
-            info_length = 0;
-        }
-    }
+    _ = checkShaderError(vert_module, zgl.COMPILE_STATUS, zgl.getShaderiv, zgl.getShaderInfoLog);
 
     var geom_module: u32 = zgl.createShader(zgl.GEOMETRY_SHADER);
     zgl.shaderSource(geom_module, 1, @ptrCast([*c]const [*c]const i8, &debug_cube_g), null);
@@ -189,78 +219,47 @@ fn loadDebugCubeShader() Shader {
     zgl.compileShader(geom_module);
     zgl.attachShader(shader.program, geom_module);
 
-    zgl.getShaderiv(geom_module, zgl.COMPILE_STATUS, &result);
-    zgl.getShaderiv(geom_module, zgl.INFO_LOG_LENGTH, &info_length);
-    log_blk: {
-        if (info_length > 0) {
-            info_log = alc.gpa_allocator.alloc(u8, @intCast(usize, info_length + 1)) catch |err|
-                {
-                std.debug.print("{}\n", .{err});
-                break :log_blk;
-            };
-            defer alc.gpa_allocator.free(info_log);
-            zgl.getShaderInfoLog(geom_module, info_length, null, @ptrCast([*c]i8, &info_log[0]));
-            std.debug.print("Geometry: {} {} \n{s}\n", .{ geom_module, info_length, info_log });
-            result = 0;
-            info_length = 0;
-        }
-    }
+    _ = checkShaderError(geom_module, zgl.COMPILE_STATUS, zgl.getShaderiv, zgl.getShaderInfoLog);
 
     var frag_module: u32 = zgl.createShader(zgl.FRAGMENT_SHADER);
     zgl.shaderSource(frag_module, 1, @ptrCast([*c]const [*c]const i8, &debug_cube_f), null);
     defer zgl.deleteShader(frag_module);
     zgl.compileShader(frag_module);
     zgl.attachShader(shader.program, frag_module);
-    zgl.getShaderiv(frag_module, zgl.COMPILE_STATUS, &result);
-    zgl.getShaderiv(frag_module, zgl.INFO_LOG_LENGTH, &info_length);
-    log_blk: {
-        if (info_length > 0) {
-            info_log = alc.gpa_allocator.alloc(u8, @intCast(usize, info_length + 1)) catch |err|
-                {
-                std.debug.print("{}\n", .{err});
-                break :log_blk;
-            };
-            defer alc.gpa_allocator.free(info_log);
-            zgl.getShaderInfoLog(frag_module, info_length, null, @ptrCast([*c]i8, &info_log[0]));
-            std.debug.print("Fragment: {} {} \n{s}\n", .{ frag_module, info_length, info_log });
-            result = 0;
-            info_length = 0;
-        }
-    }
+
+    _ = checkShaderError(frag_module, zgl.COMPILE_STATUS, zgl.getShaderiv, zgl.getShaderInfoLog);
 
     zgl.linkProgram(shader.program);
-    zgl.getProgramiv(shader.program, zgl.LINK_STATUS, &result);
-    zgl.getProgramiv(shader.program, zgl.INFO_LOG_LENGTH, &info_length);
-    log_blk: {
-        if (info_length > 0) {
-            info_log = alc.gpa_allocator.alloc(u8, @intCast(usize, info_length + 1)) catch |err|
-                {
-                std.debug.print("{}\n", .{err});
-                break :log_blk;
-            };
-            defer alc.gpa_allocator.free(info_log);
-            zgl.getProgramInfoLog(shader.program, info_length, null, @ptrCast([*c]i8, &info_log[0]));
-            std.debug.print("{} {} \n{s}\n", .{ result, info_length, info_log });
-            result = 0;
-            info_length = 0;
-        }
-    }
+
+    _ = checkShaderError(shader.program, zgl.LINK_STATUS, zgl.getProgramiv, zgl.getProgramInfoLog);
 
     zgl.useProgram(shader.program);
 
     shader.mtx_name = zgl.getUniformLocation(shader.program, @ptrCast([*c]const i8, "matrix\x00"));
+    shader.pst_name = zgl.getUniformLocation(shader.program, @ptrCast([*c]const i8, "position\x00"));
 
     return shader;
 }
 
 const debug_cube_v: []const u8 =
     "#version 330 core\n void main() { } \x00";
+
 const debug_cube_g: []const u8 =
-    "#version 330 core\n  layout(points) in; layout(triangle_strip, max_vertices = 36) out; out vec4 fPos;\n uniform mat4 matrix; " ++
-    "vec3 verts[8] = vec3[]( vec3(-0.5f, -0.5f, -0.5f),\n vec3(0.5f, -0.5f, -0.5f), vec3(-0.5f, -0.5f, 0.5f),\n vec3(0.5f, -0.5f, 0.5f), vec3(0.5f, 0.5f, -0.5f),\n vec3(-0.5f, 0.5f, -0.5f), vec3(0.5f, 0.5f, 0.5f),\n vec3(-0.5f, 0.5f, 0.5f)); " ++
-    "void BuildFace(int fir, int sec, int thr, int frt){ fPos = matrix * vec4(verts[fir], 1.0f);\n gl_Position = fPos; \n EmitVertex(); fPos = matrix * vec4(verts[sec], 1.0f);\n gl_Position = fPos; \n EmitVertex(); fPos = matrix * vec4(verts[thr], 1.0f);\n gl_Position = fPos; \n EmitVertex(); EndPrimitive(); fPos = matrix * vec4(verts[fir], 1.0f);\n gl_Position = fPos;\n EmitVertex(); fPos = matrix * vec4(verts[frt], 1.0f);\n gl_Position = fPos;\n EmitVertex(); fPos = matrix * vec4(verts[sec], 1.0f);\n gl_Position = fPos;\n EmitVertex(); EndPrimitive(); } \n void main(){ BuildFace(0, 3, 2, 1);\n  BuildFace(5, 2, 7, 0); BuildFace(1, 6, 3, 4);\n  BuildFace(2, 6, 7, 3); BuildFace(5, 1, 0, 4);\n  BuildFace(4, 7, 6, 5);} \x00";
+    "#version 330 core\nlayout(points) in;\nlayout(triangle_strip, max_vertices = 36) out;\n" ++
+    "uniform mat4 matrix;\nvec3 verts[8] = vec3[](\nvec3(-0.5f, -0.5f, -0.5f),\nvec3(0.5f, -0.5f, -0.5f),\n" ++
+    "vec3(-0.5f, -0.5f, 0.5f), vec3(0.5f, -0.5f, 0.5f),\nvec3(0.5f, 0.5f, -0.5f), vec3(-0.5f, 0.5f, -0.5f),\n" ++
+    "vec3(0.5f, 0.5f, 0.5f), vec3(-0.5f, 0.5f, 0.5f)\n);\nvoid BuildFace(int fir, int sec, int thr, int frt){\n" ++
+    "gl_Position = matrix * vec4(verts[fir], 1.0f);\nEmitVertex();" ++
+    "gl_Position = matrix * vec4(verts[sec], 1.0f);\nEmitVertex();" ++
+    "gl_Position = matrix * vec4(verts[thr], 1.0f);\nEmitVertex();\nEndPrimitive();" ++
+    "gl_Position = matrix * vec4(verts[fir], 1.0f);\nEmitVertex();\n" ++
+    "gl_Position = matrix * vec4(verts[frt], 1.0f);\nEmitVertex();\n" ++
+    "gl_Position = matrix * vec4(verts[sec], 1.0f);\nEmitVertex();\n" ++
+    "EndPrimitive();\n}\nvoid main(){\n" ++
+    "BuildFace(0, 3, 2, 1);\nBuildFace(5, 2, 7, 0);\nBuildFace(1, 6, 3, 4);\n" ++
+    "BuildFace(2, 6, 7, 3);\nBuildFace(5, 1, 0, 4);\nBuildFace(4, 7, 6, 5);}\x00";
 
 const debug_cube_f: []const u8 =
-    "#version 330 core\n in vec4 fPos;\n out vec4 fColor;" ++
-    "void main(){fColor = vec4(sin(fPos.x * 2) * 0.4f + 0.8f, " ++
-    "sin(fPos.y * 3) * 0.4f + 0.8f, 0.5f, 1.0f); } \x00";
+    "#version 330 core\nout vec4 fColor;\nvoid main(){\n" ++
+    "fColor = vec4(sin(gl_FragCoord.x * 0.008f) * 0.4f + 0.8f,\n" ++
+    "sin(gl_FragCoord.y * 0.008f) * 0.4f + 0.8f, 0.5f, 1.0f);}\x00";

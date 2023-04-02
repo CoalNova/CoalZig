@@ -109,6 +109,10 @@ pub fn getMessageString(message_index: u16) []u8 {
         61 => return "GLEW failed initialization",
         81 => return "Failed appending mesh",
         101 => return "Unable to allocate memory",
+        151 => return "Vertex Shader compilation error",
+        153 => return "Geometry Shader compilation error",
+        155 => return "Fragment Shader compilation error",
+        157 => return "Shader program link error",
         201 => return "Attempted to render a chunk whose mesh null",
         else => return "Report text not yet implemented",
     }
