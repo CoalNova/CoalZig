@@ -145,7 +145,6 @@ pub fn constructBaseTerrainMesh(chunk: *chk.Chunk, focal_point: *fcs.Focus) void
     zgl.enableVertexAttribArray(2);
 
     updateTerrainMeshResolution(chunk, focal_point);
-    std.debug.print("program {}, err {}\n", .{ mesh.material.shader.program, zgl.getError() });
 }
 
 pub fn updateTerrainMeshResolution(chunk: *chk.Chunk, focal_point: *fcs.Focus) void {

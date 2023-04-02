@@ -165,6 +165,7 @@ fn loadShader(shader_id: u32) !Shader {
     }
 
     zgl.useProgram(shader.program);
+    std.debug.print("program: {} err: {}\n", .{shader.program, zgl.getError()});
 
     shader.mtx_name = zgl.getUniformLocation(shader.program, @ptrCast([*c]const i8, "matrix\x00"));
     shader.mdl_name = zgl.getUniformLocation(shader.program, @ptrCast([*c]const i8, "model\x00"));
@@ -203,7 +204,8 @@ fn getShaderName(shader_id: u32) []const u8 {
 fn loadDebugCubeShader() Shader {
     var shader: Shader = .{};
     shader.program = zgl.createProgram();
-    zgl.useProgram(shader.program);
+    //zgl.useProgram(shader.program);
+    //std.debug.print("program {}, err {}\n", .{ shader.program, zgl.getError() });
 
     var vert_module: u32 = zgl.createShader(zgl.VERTEX_SHADER);
     zgl.shaderSource(vert_module, 1, @ptrCast([*c]const [*c]const i8, &debug_cube_v), null);
@@ -234,6 +236,7 @@ fn loadDebugCubeShader() Shader {
     _ = checkShaderError(shader.program, zgl.LINK_STATUS, zgl.getProgramiv, zgl.getProgramInfoLog);
 
     zgl.useProgram(shader.program);
+    std.debug.print("program: {} err: {}\n", .{shader.program, zgl.getError()});
 
     shader.mtx_name = zgl.getUniformLocation(shader.program, @ptrCast([*c]const i8, "matrix\x00"));
     shader.pst_name = zgl.getUniformLocation(shader.program, @ptrCast([*c]const i8, "position\x00"));

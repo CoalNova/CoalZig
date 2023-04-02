@@ -15,7 +15,7 @@ out float gZne;
 flat out int gSkp;
 
 
-uniform mat4 mvp;
+uniform mat4 matrix;
 
 void main()
 {
@@ -26,7 +26,7 @@ void main()
         norm_x = (norm_div * ((superVert >> 30) & 255) + (((superZone) & 63) << 2)) - 1.0f,
         norm_y = (norm_div * ((superVert >> 22) & 255)) - 1.0f;
 
-    gPos = mvp * vec4(x, y, z, 1.0f);
+    gPos = matrix * vec4(x, y, z, 1.0f);
     gNrm = vec3(norm_x, norm_y, 1.0f - (abs(norm_x) + abs(norm_y)));
     gCrd = vec2(norm_x, norm_y);
     gZne = (superZone >> 6) & 255;

@@ -37,7 +37,7 @@ pub fn build(b: *std.Build) void {
         b.installBinFile("libs\\glew\\bin\\glew32.dll", "glew32.dll");
         exe.addIncludePath("libs\\cglm\\include");
         exe.addLibraryPath("libs\\cglm\\lib");
-        b.installBinFile("libs\\cglm\\bin\\glew32.dll", "glew32.dll");
+        //b.installBinFile("libs\\cglm\\bin\\glew32.dll", "glew32.dll");
         exe.linkSystemLibrary("opengl32");
     } else {
         std.debug.print("Building in a Linux environment\n", .{});
