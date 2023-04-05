@@ -20,16 +20,17 @@ var inputs: [32]Input = [_]Input{.{}} ** 32;
 /// Run through SDL events and handle inputs
 pub fn processEvents() void {
     var event: sdl.SDL_Event = undefined;
-    while (sdl.SDL_PollEvent(&event) != 0) {
 
-        // process key states
-        for (&inputs) |*input| {
-            if (input.state == InputStates.down) {
-                input.state = InputStates.held;
-            } else if (input.state == InputStates.up) {
-                input.state = InputStates.off;
-            }
+    // process key states
+    for (&inputs) |*input| {
+        if (input.state == InputStates.down) {
+            input.state = InputStates.held;
+        } else if (input.state == InputStates.up) {
+            input.state = InputStates.off;
         }
+    }
+
+    while (sdl.SDL_PollEvent(&event) != 0) {
 
         // check if quit
         switch (event.type) {

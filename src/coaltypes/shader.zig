@@ -15,6 +15,7 @@ pub const Shader = struct {
 
     mtx_name: i32 = -1, // "matrix"
     mdl_name: i32 = -1, // "model"
+    vpm_name: i32 = -1, // "viewproj"
     pst_name: i32 = -1, // "position"
     cam_name: i32 = -1, // "camera"
     rot_name: i32 = -1, // "rotation"
@@ -165,10 +166,11 @@ fn loadShader(shader_id: u32) !Shader {
     }
 
     zgl.useProgram(shader.program);
-    std.debug.print("program: {} err: {}\n", .{shader.program, zgl.getError()});
+    std.debug.print("program: {} err: {}\n", .{ shader.program, zgl.getError() });
 
     shader.mtx_name = zgl.getUniformLocation(shader.program, @ptrCast([*c]const i8, "matrix\x00"));
     shader.mdl_name = zgl.getUniformLocation(shader.program, @ptrCast([*c]const i8, "model\x00"));
+    shader.mdl_name = zgl.getUniformLocation(shader.program, @ptrCast([*c]const i8, "viewproj\x00"));
     shader.cam_name = zgl.getUniformLocation(shader.program, @ptrCast([*c]const i8, "camera\x00"));
     shader.rot_name = zgl.getUniformLocation(shader.program, @ptrCast([*c]const i8, "rotation\x00"));
     shader.pst_name = zgl.getUniformLocation(shader.program, @ptrCast([*c]const i8, "position\x00"));
@@ -236,7 +238,7 @@ fn loadDebugCubeShader() Shader {
     _ = checkShaderError(shader.program, zgl.LINK_STATUS, zgl.getProgramiv, zgl.getProgramInfoLog);
 
     zgl.useProgram(shader.program);
-    std.debug.print("program: {} err: {}\n", .{shader.program, zgl.getError()});
+    std.debug.print("program: {} err: {}\n", .{ shader.program, zgl.getError() });
 
     shader.mtx_name = zgl.getUniformLocation(shader.program, @ptrCast([*c]const i8, "matrix\x00"));
     shader.pst_name = zgl.getUniformLocation(shader.program, @ptrCast([*c]const i8, "position\x00"));
@@ -263,6 +265,6 @@ const debug_cube_g: []const u8 =
     "BuildFace(2, 6, 7, 3);\nBuildFace(5, 1, 0, 4);\nBuildFace(4, 7, 6, 5);}\x00";
 
 const debug_cube_f: []const u8 =
-    "#version 330 core\nout vec4 fColor;\nvoid main(){\n" ++
-    "fColor = vec4(sin(gl_FragCoord.x * 0.008f) * 0.4f + 0.8f,\n" ++
-    "sin(gl_FragCoord.y * 0.008f) * 0.4f + 0.8f, 0.5f, 1.0f);}\x00";
+    "#version 330 core\nout vec4 fColor;\nuniform vec3 position;\nvoid main(){\n" ++
+    "fColor = vec4(sin(gl_FragCoord.x * 0.008f + position.x) * 0.4f + 0.8f,\n" ++
+    "sin(gl_FragCoord.y * 0.008f + position.y) * 0.4f + 0.8f, sin(position.z) * 0.5f + 0.5f, 1.0f);}\x00";

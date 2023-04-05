@@ -15,6 +15,7 @@ const cat = rpt.ReportCatagory;
 pub fn renderWindow(window: ?*wnd.Window) void {
     if (window != null) {
         var w = window.?;
+        sdl.SDL_GetWindowSize(w.sdl_window, &w.size.x, &w.size.y);
         w.camera.calculateMatrices(window.?);
 
         switch (w.category) {
@@ -46,7 +47,7 @@ fn renderHardware(window: *wnd.Window) void {
                 renderTerrain(chunk, window.camera);
                 if (chunk.setpieces.items.len > 0) {
                     for (chunk.setpieces.items) |setpiece| {
-                        renderHardwareDynamicSetpiece(window.camera, setpiece);
+                        renderHardwareDynamicSetpiece(window.camera, setpiece.*);
                     }
                 }
             }
@@ -69,7 +70,7 @@ fn renderHardwareDynamicSetpiece(camera: cam.Camera, setpiece: stp.Setpiece) voi
     const mesh = setpiece.mesh;
     const axial = setpiece.euclid.position.axial();
     const model =
-        zmt.mul(zmt.translation(axial.x, axial.y, axial.z), zmt.mul(zmt.matFromQuat(setpiece.euclid.quaternion), zmt.scaling(1, 1, 1)));
+        zmt.mul(zmt.mul(zmt.scaling(setpiece.euclid.scale.x, setpiece.euclid.scale.y, setpiece.euclid.scale.z), zmt.matFromQuat(setpiece.euclid.quaternion)), zmt.translation(axial.x, axial.y, axial.z));
 
     const mvp: zmt.Mat =
         zmt.mul(model, camera.mvp_matrix);
@@ -81,6 +82,7 @@ fn renderHardwareDynamicSetpiece(camera: cam.Camera, setpiece: stp.Setpiece) voi
     //TODO uniform blasting (possibly bounds checked?)
     //assign uniforms
     zgl.uniformMatrix4fv(mesh.material.shader.mtx_name, 1, zgl.FALSE, &mvp[0][0]);
+    zgl.uniform3f(mesh.material.shader.pst_name, axial.x, axial.y, axial.z);
     //draw
     zgl.drawElements(mesh.drawstyle_enum, mesh.num_elements, zgl.UNSIGNED_INT, null);
 }

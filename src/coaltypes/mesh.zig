@@ -77,13 +77,6 @@ fn loadMesh(mesh_id: u32) ?Mesh {
     return mesh;
 }
 
-const terrain_mesh_res_rings = [4]pst.vct.Vector2{
-    .{ .x = 18, .y = 12 },
-    .{ .x = 72, .y = 48 },
-    .{ .x = 388, .y = 192 },
-    .{ .x = 1152, .y = 768 },
-};
-
 pub fn constructBaseTerrainMesh(chunk: *chk.Chunk, focal_point: *fcs.Focus) void {
 
     //probably check that mesh is not already constructed
@@ -102,15 +95,16 @@ pub fn constructBaseTerrainMesh(chunk: *chk.Chunk, focal_point: *fcs.Focus) void
     zgl.useProgram(mesh.material.shader.program);
 
     zgl.genVertexArrays(1, &mesh.vao);
+    zgl.bindVertexArray(mesh.vao);
+
     zgl.genBuffers(1, &mesh.vbo);
     zgl.genBuffers(1, &mesh.ibo);
 
-    zgl.bindVertexArray(mesh.vao);
     zgl.bindBuffer(zgl.ARRAY_BUFFER, mesh.vbo);
     zgl.bindBuffer(zgl.ELEMENT_ARRAY_BUFFER, mesh.ibo);
 
     //TODO fixed buffer solution for in-scope traversal?
-    var vbo = std.ArrayList(f32).init(alc.gpa_allocator);
+    var vbo = std.ArrayList(u32).init(alc.gpa_allocator);
     defer vbo.deinit();
 
     //catagory should vbo append fail
@@ -123,35 +117,65 @@ pub fn constructBaseTerrainMesh(chunk: *chk.Chunk, focal_point: *fcs.Focus) void
         for (0..1025) |x| {
             // [0] szzz_zzzz_zzzz_zzzz_zzZo_ZoZo_ZoXn_XnXn
             // [1] XnYn_YnYn_Ynxx_xxxx_xxxx_xyyy_yyyy_yyyy
-            var height = chk.getHeight(pst.Position.init(chunk.index, .{ .x = @intToFloat(f32, x), .y = @intToFloat(f32, y), .z = 0 }));
             var super_zone: u32 = 0;
-            var super_vert: u32 = 0;
-            super_zone += (@floatToInt(u17, height * 10) << 14);
-            super_vert += @truncate(u32, ((x & 2047) << 11));
-            super_vert += @truncate(u32, (y & 2047));
+            var super_vert: u32 = (@intCast(u22, x) << 11) + @intCast(u11, y);
+            //var height = chk.getHeight(pst.Position.init(chunk.index, .{ .x = @intToFloat(f32, x), .y = @intToFloat(f32, y), .z = 0 }));
 
-            vbo.append(@ptrCast(*f32, &super_zone).*) catch
+            vbo.append(super_zone) catch
                 return rpt.logReportInit(app_cat, 101, [4]i32{ 0, 0, 0, 0 });
-            vbo.append(@ptrCast(*f32, &super_vert).*) catch
+            vbo.append(super_vert) catch
                 return rpt.logReportInit(app_cat, 101, [4]i32{ 0, 0, 0, 0 });
+
+            //ah, yes, *this* bug. I haven't a clue.
+            if (x == 1024 and y == 1024) {
+                vbo.append(super_zone) catch
+                    return rpt.logReportInit(app_cat, 101, [4]i32{ 0, 0, 0, 0 });
+                vbo.append(super_vert) catch
+                    return rpt.logReportInit(app_cat, 101, [4]i32{ 0, 0, 0, 0 });
+                vbo.append(super_zone) catch
+                    return rpt.logReportInit(app_cat, 101, [4]i32{ 0, 0, 0, 0 });
+                vbo.append(super_vert) catch
+                    return rpt.logReportInit(app_cat, 101, [4]i32{ 0, 0, 0, 0 });
+            }
         };
+
+    std.debug.print("{}\n", .{vbo.items.len});
 
     zgl.bufferData(zgl.ARRAY_BUFFER, @intCast(isize, @sizeOf(f32) * vbo.items.len), @ptrCast(?*const anyopaque, vbo.items), zgl.STATIC_DRAW);
 
     //void glVertexAttribPointer(GLuint index, GLint size, GLenum type, GLboolean normalized, GLsizei stride, const void * pointer);
-    zgl.vertexAttribPointer(1, @sizeOf(f32), zgl.FLOAT, 0, @sizeOf(f32) * 2, null);
-    zgl.vertexAttribPointer(2, @sizeOf(f32), zgl.FLOAT, 0, @sizeOf(f32) * 2, @intToPtr(*void, @sizeOf(f32)));
+    zgl.vertexAttribPointer(0, @sizeOf(f32), zgl.FLOAT, 0, @sizeOf(f32) * 2, null);
+    zgl.vertexAttribPointer(1, @sizeOf(f32), zgl.FLOAT, 0, @sizeOf(f32) * 2, @intToPtr(*void, @sizeOf(f32)));
+    zgl.enableVertexAttribArray(0);
     zgl.enableVertexAttribArray(1);
-    zgl.enableVertexAttribArray(2);
 
     updateTerrainMeshResolution(chunk, focal_point);
 }
+
+const terrain_mesh_res_rings = [4]pst.vct.Vector2{
+    .{ .x = 18, .y = 12 },
+    .{ .x = 72, .y = 48 },
+    .{ .x = 388, .y = 192 },
+    .{ .x = 1152, .y = 768 },
+};
 
 pub fn updateTerrainMeshResolution(chunk: *chk.Chunk, focal_point: *fcs.Focus) void {
     var new_ibo = std.ArrayList(u32).init(alc.gpa_allocator);
     defer new_ibo.deinit();
 
-    terrainMeshResolutionSubRun(chunk, focal_point, &new_ibo, 0, 0, 256, 3);
+    //terrainMeshResolutionSubRun(chunk, focal_point, &new_ibo, 0, 0, 256, 3);
+    _ = focal_point;
+
+    for (0..128) |y|
+        for (0..128) |x| {
+            const index = @truncate(u32, x * 8 + y * 8 * 1025);
+            new_ibo.append(index) catch return;
+            new_ibo.append(index + 8) catch return;
+            new_ibo.append(index + 8 + 8 * 1025) catch return;
+            new_ibo.append(index) catch return;
+            new_ibo.append(index + 8 + 8 * 1025) catch return;
+            new_ibo.append(index + 8 * 1025) catch return;
+        };
 
     if (chunk.mesh.?.ibo != 0) {
         //delete ibo
@@ -159,6 +183,7 @@ pub fn updateTerrainMeshResolution(chunk: *chk.Chunk, focal_point: *fcs.Focus) v
     }
 
     chunk.mesh.?.num_elements = @intCast(i32, new_ibo.items.len);
+    std.debug.print("ibo {}\n", .{new_ibo.items.len});
 
     //generate and attach ibo
     zgl.genBuffers(1, &chunk.mesh.?.ibo);

@@ -7,20 +7,13 @@ var gpa = std.heap.GeneralPurposeAllocator(.{}){};
 pub const gpa_allocator = gpa.allocator();
 
 // Chunk Allocation Table
-var cat : []u16 = undefined;
+var cat: []u16 = undefined;
 
-const CATError = error {
-    CATAllocationError,
-    CATOverflowError,
-    CATUnderflowError
-};
+//TODO create a possible block structure
+pub const setpiece_allocator = gpa_allocator;
 
-pub fn initializeCAT() !void
-{
+const CATError = error{ CATAllocationError, CATOverflowError, CATUnderflowError };
 
-}
+pub fn initializeCAT() !void {}
 
-pub fn addToCAT() !void
-{
-
-}
+pub fn addToCAT() !void {}

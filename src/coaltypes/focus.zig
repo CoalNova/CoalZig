@@ -55,9 +55,10 @@ pub fn updateFocalPoint(focal_point: *Focus) void {
                             break :plc_blk;
                         };
                 }
+                std.debug.print("Trying terrain mesh for chunk: {}, {}: \n", .{ index.x, index.y });
+
                 if (std.math.absCast(focal_index.x - @intCast(i32, index.x)) < 2 and focal_index.y + @intCast(i32, index.y) < 2) {
                     var c: *chk.Chunk = chk.getChunk(index).?;
-                    std.debug.print("Generating terrain mesh for chunk: {}, {} : {*} \n", .{ index.x, index.y, c.mesh });
                     if (c.mesh == null) {
                         msh.constructBaseTerrainMesh(c, focal_point);
                     }

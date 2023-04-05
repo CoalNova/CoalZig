@@ -8,5 +8,5 @@ out vec4 oColor;
 
 void main()
 {
-    oColor = vec4(fUV.x * 0.5f + fNrm.x, fUV.y * 0.5f + fNrm.y, fNrm.z, 1.0f);
+    oColor = vec4(0.1f, 0.8f, 0.3f, 1.0f);
 }

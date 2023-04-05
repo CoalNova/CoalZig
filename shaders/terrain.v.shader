@@ -20,15 +20,15 @@ uniform mat4 matrix;
 void main()
 {
     float 
-        x = (superVert >> 11) & 2047,
-        y = superVert & 2047,
-        z = ((superZone >> 14) & ((1 << 17) - 1)) * 0.1f,
-        norm_x = (norm_div * ((superVert >> 30) & 255) + (((superZone) & 63) << 2)) - 1.0f,
-        norm_y = (norm_div * ((superVert >> 22) & 255)) - 1.0f;
+        x = ((superVert >> 11) & 2047) - 512.0f,
+        y = (superVert & 2047) - 512.0f,
+        z = 0,
+        norm_x = 0,
+        norm_y = 0;
 
     gPos = matrix * vec4(x, y, z, 1.0f);
     gNrm = vec3(norm_x, norm_y, 1.0f - (abs(norm_x) + abs(norm_y)));
     gCrd = vec2(norm_x, norm_y);
-    gZne = (superZone >> 6) & 255;
-    gSkp = (superZone >> 31) & 1;
+    gZne = 0;
+    gSkp = 0;
 }

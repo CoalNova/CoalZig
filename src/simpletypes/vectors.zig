@@ -1,3 +1,5 @@
+const std = @import("std");
+
 /// Two-part Vector, not to be confused with the SIMD @Vector or std::vector<>
 pub const Vector2 = struct {
     x: f32 = 0.0,

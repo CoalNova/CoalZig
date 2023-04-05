@@ -14,8 +14,7 @@ out vec2 fUV;
 out vec3 fNrm;
 void main()
 {
-    if (gSkp[0] + gSkp[1] + gSkp[2] > 0)
-        return;
+    //if (gSkp[0] + gSkp[1] + gSkp[2] > 0)return;
     
     gl_Position = gPos[0];
     fUV = vec2(0, 0);

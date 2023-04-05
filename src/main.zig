@@ -34,6 +34,7 @@ const cam = @import("coaltypes/camera.zig");
 const cms = @import("coalsystem/coalmathsystem.zig");
 const evs = @import("coalsystem/eventsystem.zig");
 const pst = @import("coaltypes/position.zig");
+const gls = @import("coalsystem/glsystem.zig");
 
 pub fn main() void {
     // Start system,
@@ -41,23 +42,10 @@ pub fn main() void {
     // Defer closing of system
     defer (sys.douse());
 
-    const cube = stp.getSetpiece(.{});
-    var camera: *cam.Camera = undefined;
     const window = wnd.getWindow(wnd.WindowCategory.hardware).?;
-
-    stp_blk: for (window.focal_point.active_chunks) |index| {
-        const focal_index: pnt.Point3 = window.focal_point.position.index();
-        if (index.equals(focal_index)) {
-            var chunk = chk.getChunk(index);
-            if (chunk != null) {
-                chunk.?.setpieces.append(cube) catch |err|
-                    std.debug.print("{}\n", .{err});
-                camera = &window.camera;
-                camera.euclid.position = pst.Position.init(.{ .x = 0, .y = 0, .z = 0 }, .{ .x = 0, .y = 0, .z = 1 });
-                break :stp_blk;
-            }
-        }
-    }
+    var camera = &window.camera;
+    camera.euclid.position = pst.Position.init(.{ .x = 0, .y = 0, .z = 0 }, .{ .x = 0, .y = 0, .z = 1.75 });
+    var cube = stp.generateSetPiece(.{}, chk.getChunk(window.focal_point.position.index()).?).?;
 
     //main loop
     while (sys.runEngine()) {
@@ -67,6 +55,23 @@ pub fn main() void {
         var rot_y: f32 = 0;
         var rot_z: f32 = 0;
 
+        if (evs.getKeyDown(sys.sdl.SDL_SCANCODE_LALT)) {
+            _ = sys.sdl.SDL_SetRelativeMouseMode(sys.sdl.SDL_TRUE);
+            sys.sdl.SDL_WarpMouseInWindow(window.sdl_window, window.size.x >> 1, window.size.y >> 1);
+        }
+
+        if (evs.getKeyHeld(sys.sdl.SDL_SCANCODE_LALT)) {
+            var _x: c_int = 0;
+            var _y: c_int = 0;
+            _ = sys.sdl.SDL_GetMouseState(&_x, &_y);
+            rot_x += @intToFloat(f32, (_y - (window.size.y >> 1))) * 0.001;
+            rot_z += @intToFloat(f32, (_x - (window.size.x >> 1))) * 0.001;
+            sys.sdl.SDL_WarpMouseInWindow(window.sdl_window, window.size.x >> 1, window.size.y >> 1);
+        }
+
+        if (evs.getKeyUp(sys.sdl.SDL_SCANCODE_LALT))
+            _ = sys.sdl.SDL_SetRelativeMouseMode(sys.sdl.SDL_FALSE);
+
         if (evs.getKeyHeld(sys.sdl.SDL_SCANCODE_W)) new_y = 0.1;
         if (evs.getKeyHeld(sys.sdl.SDL_SCANCODE_A)) new_x = -0.1;
         if (evs.getKeyHeld(sys.sdl.SDL_SCANCODE_S)) new_y = -0.1;
@@ -74,20 +79,35 @@ pub fn main() void {
 
         if (evs.getKeyHeld(sys.sdl.SDL_SCANCODE_L)) rot_z += 0.04;
         if (evs.getKeyHeld(sys.sdl.SDL_SCANCODE_J)) rot_z -= 0.04;
-        if (evs.getKeyHeld(sys.sdl.SDL_SCANCODE_I)) rot_x -= 0.04;
-        if (evs.getKeyHeld(sys.sdl.SDL_SCANCODE_K)) rot_x += 0.04;
+        if (evs.getKeyHeld(sys.sdl.SDL_SCANCODE_I)) rot_x += 0.04;
+        if (evs.getKeyHeld(sys.sdl.SDL_SCANCODE_K)) rot_x -= 0.04;
         if (evs.getKeyHeld(sys.sdl.SDL_SCANCODE_Q)) rot_y += 0.04;
         if (evs.getKeyHeld(sys.sdl.SDL_SCANCODE_E)) rot_y -= 0.04;
+
+        const speed_mod: f32 = if (evs.getKeyHeld(sys.sdl.SDL_SCANCODE_LSHIFT)) 10.0 else 1.0;
+
+        if (evs.getKeyDown(sys.sdl.SDL_SCANCODE_SPACE))
+            gls.toggleWireFrame();
 
         var cam_rot = cms.convQuatToEul(camera.euclid.quaternion);
 
         camera.euclid.position =
             camera.euclid.position.addAxial(.{
-            .x = new_x * @cos(cam_rot[2]) + new_y * @sin(cam_rot[2]),
-            .y = new_y * @cos(cam_rot[2]) - new_x * @sin(cam_rot[2]),
+            .x = new_x * @cos(cam_rot[2]) + new_y * @sin(cam_rot[2]) * speed_mod,
+            .y = new_y * @cos(cam_rot[2]) - new_x * @sin(cam_rot[2]) * speed_mod,
             .z = 0,
         });
         camera.euclid.quaternion =
-            zmt.qmul(camera.euclid.quaternion, zmt.quatFromRollPitchYaw(rot_x, rot_y, rot_z));
+            zmt.qmul(zmt.qmul(zmt.quatFromRollPitchYaw(0, 0, rot_z), camera.euclid.quaternion), zmt.quatFromRollPitchYaw(rot_x, rot_y, 0));
+
+        // TODO replace with proper clock timing
+        sys.sdl.SDL_Delay(15);
+
+        cube.euclid.position = camera.euclid.position.addAxial(.{
+            .x = 1,
+            .y = 1,
+            .z = -0.75 + @sin(@intToFloat(f32, sys.getEngineTick()) * 0.01) * 0.3,
+        });
+        cube.euclid.quaternion = zmt.qmul(cube.euclid.quaternion, zmt.quatFromRollPitchYaw(0.01, 0.02, 0.03));
     }
 }

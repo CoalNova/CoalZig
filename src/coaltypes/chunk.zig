@@ -82,7 +82,7 @@ pub const Chunk = struct {
     index: pst.pnt.Point3 = .{ .x = 0, .y = 0, .z = 0 },
     heights: []u16 = undefined,
     height_mod: u8 = 0,
-    setpieces: std.ArrayList(stp.Setpiece) = undefined,
+    setpieces: std.ArrayList(*stp.Setpiece) = undefined,
     mesh: ?*msh.Mesh = null,
 };
 
@@ -147,7 +147,7 @@ pub fn loadChunk(chunk_index: pst.pnt.Point3) void {
     };
     errdefer alc.gpa_allocator.free(chunk.heights);
 
-    chunk.setpieces = std.ArrayList(stp.Setpiece).init(alc.gpa_allocator);
+    chunk.setpieces = std.ArrayList(*stp.Setpiece).init(alc.gpa_allocator);
     errdefer chunk.setpieces.?.deinit();
     //TODO handle setpiece loading
 

@@ -65,7 +65,7 @@ pub fn ignite() void {
     // read game meta header
     var meta_header: fio.MetaHeader = fio.loadMetaHeader("");
 
-    chk.initializeChunkMap(alc.gpa_allocator, pnt.Point3.init(1, 1, 1)) catch |err|
+    chk.initializeChunkMap(alc.gpa_allocator, meta_header.map_size) catch |err|
         {
         std.debug.print("map initialization failed {!}\n", .{err});
         setEngineStateFlag(EngineFlag.ef_quitflag);
@@ -153,8 +153,6 @@ pub fn runEngine() bool {
     for (wnd.getWindowGroup()) |window|
         rnd.renderWindow(window.?);
 
-    // TODO replace with proper clock timing
-    sdl.SDL_Delay(15);
 
     return (!getEngineStateFlag(EngineFlag.ef_quitflag));
 }
