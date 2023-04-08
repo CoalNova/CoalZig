@@ -127,7 +127,7 @@ pub fn main() void {
             .{
                 .x = camera.euclid.position.axial().x,
                 .y = camera.euclid.position.axial().y,
-                .z = chk.getHeight(camera.euclid.position) + 0.0,
+                .z = chk.getHeight(camera.euclid.position) + 1.75,
             },
         );
 
@@ -144,7 +144,7 @@ pub fn main() void {
         });
 
         const dist = camera.euclid.position.squareDistance(window.focal_point.position);
-        if (dist > 256) {
+        if (dist > 64) {
             fcs.updateFocalPoint(&window.focal_point, camera.euclid.position);
         }
 
