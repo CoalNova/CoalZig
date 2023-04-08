@@ -31,8 +31,8 @@
 //! s = 1 bit for discard vertex
 //! z = 17 bits for vertex z pos [0..131072] as float * 0.1f []
 //! Zo = Zone, 8 bits for terrain texture and auto-generation data
-//! Xn = 8 bits for normal x [0..256] as float * (1 / 512) - 1.0 [-1.0..1.0]
-//! Yn = 8 bits for normal y [0..256] as float * (1 / 512) - 1.0 [-1.0..1.0]
+//! Xn = 8 bits for normal x [0..256] as float * (1 / 256) - 128 [-1.0..1.0]
+//! Yn = 8 bits for normal y [0..256] as float * (1 / 256) - 128 [-1.0..1.0]
 //! x = 11 bits for vertex x position [0..1025]
 //! y = 11 bits for vertex y position [0..1025]
 //!
@@ -74,6 +74,7 @@ const stp = @import("../coaltypes/setpiece.zig");
 const ogd = @import("../coaltypes/ogd.zig");
 const msh = @import("../coaltypes/mesh.zig");
 const cms = @import("../coalsystem/coalmathsystem.zig");
+const fio = @import("../coalsystem/fileiosystem.zig");
 
 /// The container struct for world chunk
 /// will contain references to create/destroy/move setpieces and objects
@@ -98,7 +99,7 @@ pub fn initializeChunkMap(allocator: std.mem.Allocator, bounds: pst.pnt.Point3) 
     for (0..b_y) |y| {
         for (0..b_x) |x| {
             chunk_map[x + y * b_x] = .{
-                .index = .{ .x = @intCast(i32, @mod(x, b_x)), .y = @intCast(i32, y / b_x), .z = 0 },
+                .index = .{ .x = @intCast(i32, x), .y = @intCast(i32, y), .z = 0 },
                 .heights = undefined,
                 .height_mod = 0,
                 .setpieces = undefined,
@@ -125,11 +126,9 @@ const ChunkError = error{OutofBoundsChunkMapAccess};
 /// The z axis of the Point3 is unused for chunk access at this time
 ///     and is implemented to avoid needing to downcast
 pub fn getChunk(index: pst.pnt.Point3) ?*Chunk {
-    if (index.x >= map_bounds.x or index.x < 0 or
-        index.y >= map_bounds.y or index.y < 0)
-    {
+    if (!indexIsMapValid(index))
         return null;
-    }
+
     return &chunk_map[@intCast(usize, index.x + index.y * map_bounds.x)];
 }
 
@@ -145,6 +144,13 @@ pub fn loadChunk(chunk_index: pst.pnt.Point3) void {
         std.debug.print("{}\n", .{err});
         return;
     };
+
+    //TODO chunk map name needs a centralized location
+    fio.loadChunkHeights(&chunk.heights, &chunk.height_mod, chunk_index, "dawn") catch |err| {
+        std.debug.print("{!}\n", .{err});
+        return;
+    };
+
     errdefer alc.gpa_allocator.free(chunk.heights);
 
     chunk.setpieces = std.ArrayList(*stp.Setpiece).init(alc.gpa_allocator);
@@ -188,7 +194,7 @@ pub fn getHeight(position: pst.Position) f32 {
             if (chunk.heights.len == 0)
                 return 0.0;
 
-            const index = @intCast(usize, (pos_absol.x >> 1) + (pos_absol.y >> 1) * 512);
+            const index = @intCast(usize, ((pos_absol.x + 512) >> 1) + ((pos_absol.y + 512) >> 1) * 512);
 
             return @intToFloat(f32, chunk.heights[index]) * 0.1 +
                 @intToFloat(f32, (@as(u32, chunk.height_mod) * 1024));
@@ -218,10 +224,7 @@ pub fn getHeight(position: pst.Position) f32 {
         .x = if (x_g) 1 else 0,
         .y = if (x_g) 0 else 1,
     };
-    const p_2 = if (x_g)
-        getHeight(position.round().addAxial(.{ .x = 1, .y = 0, .z = 0 }))
-    else
-        getHeight(position.round().addAxial(.{ .x = 0, .y = 1, .z = 0 }));
+    const p_2 = getHeight(position.round().addAxial(.{ .x = v_2.x, .y = v_2.y, .z = 0 }));
 
     //normalish the values
     var v_a = cms.Vec4{ 0, 0, 0, 0 };

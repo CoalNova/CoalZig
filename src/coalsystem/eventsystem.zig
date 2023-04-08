@@ -1,6 +1,8 @@
 const std = @import("std");
 const sys = @import("../coalsystem/coalsystem.zig");
 const wnd = @import("../coaltypes/window.zig");
+const alc = @import("../coalsystem/allocationsystem.zig");
+const rpt = @import("../coaltypes/report.zig");
 const sdl = sys.sdl;
 
 /// The states available to the various inputs
@@ -86,3 +88,56 @@ pub inline fn getKeyHeld(scancode: sdl.SDL_Scancode) bool {
 pub inline fn getKeyUp(scancode: sdl.SDL_Scancode) bool {
     return matchKeyState(scancode, InputStates.up);
 }
+
+pub const IExecutor = struct {
+    executeFn: fn (*IExecutor) void,
+    pub fn execute(executor: *IExecutor) void {
+        return executor.executeFn(executor);
+    }
+};
+
+var perFrameExecutors: std.ArrayList(*IExecutor) = undefined;
+pub fn initPerFrameExecutors() void {
+    perFrameExecutors = std.ArrayList(*IExecutor).init(alc.gpa_allocator);
+}
+/// Executes all subscribed functors
+pub fn executePerFrame() void {
+    for (perFrameExecutors) |executor| executor.executeFn();
+}
+pub fn subscribePerFrame(executor: *IExecutor) !void {
+    perFrameExecutors.append(executor) catch |err|
+        {
+        const cat = @enumToInt(rpt.ReportCatagory.level_error) |
+            @enumToInt(rpt.ReportCatagory.scripting) |
+            @enumToInt(rpt.ReportCatagory.memory_allocation);
+        rpt.logReportInit(cat, 101, [4]i32{ perFrameExecutors.items.len, 0, 0, 0 });
+        return err;
+    };
+}
+pub fn unsubscribePerFrame(executor: *IExecutor) void {
+    if (perFrameExecutors.items.len == 1) {
+        perFrameExecutors.clearAndFree();
+        return;
+    }
+    for (perFrameExecutors, 0..) |e, i|
+        if (e == executor) {
+            perFrameExecutors.items[i] = perFrameExecutors.pop();
+            return;
+        };
+
+    const cat = @enumToInt(rpt.ReportCatagory.level_error) |
+        @enumToInt(rpt.ReportCatagory.scripting);
+    rpt.logReportInit(cat, 301, [4]i32{ perFrameExecutors.items.len, 0, 0, 0 });
+}
+
+var iterativeExecutors = std.ArrayList(*IExecutor);
+var iterativeIndexer: usize = 0;
+pub fn initIterativeExecutors() void {}
+/// Runs execution serialy
+pub fn executeIterative() void {}
+
+var balancedExecutors: []std.ArrayList(*IExecutor) = undefined;
+pub fn initBalancedExecutors() void {}
+/// Spreads execution over a predefined series of balanced
+/// The argument is an index
+pub fn executeBalanced() void {}

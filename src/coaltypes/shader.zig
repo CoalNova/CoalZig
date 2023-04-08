@@ -170,7 +170,7 @@ fn loadShader(shader_id: u32) !Shader {
 
     shader.mtx_name = zgl.getUniformLocation(shader.program, @ptrCast([*c]const i8, "matrix\x00"));
     shader.mdl_name = zgl.getUniformLocation(shader.program, @ptrCast([*c]const i8, "model\x00"));
-    shader.mdl_name = zgl.getUniformLocation(shader.program, @ptrCast([*c]const i8, "viewproj\x00"));
+    shader.vpm_name = zgl.getUniformLocation(shader.program, @ptrCast([*c]const i8, "viewproj\x00"));
     shader.cam_name = zgl.getUniformLocation(shader.program, @ptrCast([*c]const i8, "camera\x00"));
     shader.rot_name = zgl.getUniformLocation(shader.program, @ptrCast([*c]const i8, "rotation\x00"));
     shader.pst_name = zgl.getUniformLocation(shader.program, @ptrCast([*c]const i8, "position\x00"));
@@ -240,7 +240,8 @@ fn loadDebugCubeShader() Shader {
     zgl.useProgram(shader.program);
     std.debug.print("program: {} err: {}\n", .{ shader.program, zgl.getError() });
 
-    shader.mtx_name = zgl.getUniformLocation(shader.program, @ptrCast([*c]const i8, "matrix\x00"));
+    shader.mdl_name = zgl.getUniformLocation(shader.program, @ptrCast([*c]const i8, "model\x00"));
+    shader.vpm_name = zgl.getUniformLocation(shader.program, @ptrCast([*c]const i8, "viewproj\x00"));
     shader.pst_name = zgl.getUniformLocation(shader.program, @ptrCast([*c]const i8, "position\x00"));
 
     return shader;
@@ -250,21 +251,21 @@ const debug_cube_v: []const u8 =
     "#version 330 core\n void main() { } \x00";
 
 const debug_cube_g: []const u8 =
-    "#version 330 core\nlayout(points) in;\nlayout(triangle_strip, max_vertices = 36) out;\n" ++
-    "uniform mat4 matrix;\nvec3 verts[8] = vec3[](\nvec3(-0.5f, -0.5f, -0.5f),\nvec3(0.5f, -0.5f, -0.5f),\n" ++
+    "#version 330 core\nlayout(points) in;\nlayout(triangle_strip, max_vertices = 36) out;\n out vec4 fPos;\n" ++
+    "uniform mat4 model;\nuniform mat4 viewproj;\nvec3 verts[8] = vec3[](\nvec3(-0.5f, -0.5f, -0.5f),\nvec3(0.5f, -0.5f, -0.5f),\n" ++
     "vec3(-0.5f, -0.5f, 0.5f), vec3(0.5f, -0.5f, 0.5f),\nvec3(0.5f, 0.5f, -0.5f), vec3(-0.5f, 0.5f, -0.5f),\n" ++
     "vec3(0.5f, 0.5f, 0.5f), vec3(-0.5f, 0.5f, 0.5f)\n);\nvoid BuildFace(int fir, int sec, int thr, int frt){\n" ++
-    "gl_Position = matrix * vec4(verts[fir], 1.0f);\nEmitVertex();" ++
-    "gl_Position = matrix * vec4(verts[sec], 1.0f);\nEmitVertex();" ++
-    "gl_Position = matrix * vec4(verts[thr], 1.0f);\nEmitVertex();\nEndPrimitive();" ++
-    "gl_Position = matrix * vec4(verts[fir], 1.0f);\nEmitVertex();\n" ++
-    "gl_Position = matrix * vec4(verts[frt], 1.0f);\nEmitVertex();\n" ++
-    "gl_Position = matrix * vec4(verts[sec], 1.0f);\nEmitVertex();\n" ++
+    "gl_Position = viewproj * (fPos = (model * vec4(verts[fir], 1.0f)));\nEmitVertex();" ++
+    "gl_Position = viewproj * (fPos = (model * vec4(verts[sec], 1.0f)));\nEmitVertex();" ++
+    "gl_Position = viewproj * (fPos = (model * vec4(verts[thr], 1.0f)));\nEmitVertex();\nEndPrimitive();" ++
+    "gl_Position = viewproj * (fPos = (model * vec4(verts[fir], 1.0f)));\nEmitVertex();\n" ++
+    "gl_Position = viewproj * (fPos = (model * vec4(verts[frt], 1.0f)));\nEmitVertex();\n" ++
+    "gl_Position = viewproj * (fPos = (model * vec4(verts[sec], 1.0f)));\nEmitVertex();\n" ++
     "EndPrimitive();\n}\nvoid main(){\n" ++
     "BuildFace(0, 3, 2, 1);\nBuildFace(5, 2, 7, 0);\nBuildFace(1, 6, 3, 4);\n" ++
     "BuildFace(2, 6, 7, 3);\nBuildFace(5, 1, 0, 4);\nBuildFace(4, 7, 6, 5);}\x00";
 
 const debug_cube_f: []const u8 =
-    "#version 330 core\nout vec4 fColor;\nuniform vec3 position;\nvoid main(){\n" ++
-    "fColor = vec4(sin(gl_FragCoord.x * 0.008f + position.x) * 0.4f + 0.8f,\n" ++
-    "sin(gl_FragCoord.y * 0.008f + position.y) * 0.4f + 0.8f, sin(position.z) * 0.5f + 0.5f, 1.0f);}\x00";
+    "#version 330 core\nout vec4 fColor;\nin vec4 fPos;\nvoid main(){\n" ++
+    "fColor = vec4(sin(fPos.x * 2.3f) * 0.4f + 0.8f,\n" ++
+    "sin(fPos.y * 1.3f) * 0.4f + 0.8f, cos(fPos.z * 1.8f) * 0.4f + 0.8f, 1.0f);}\x00";

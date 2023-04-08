@@ -10,13 +10,13 @@ const sys = @import("../coalsystem/coalsystem.zig");
 
 /// A bitmaskable flag series for report classification
 pub const ReportCatagory = enum(u16) {
-    /// General information, not bad
+    /// General information
     level_information = 0b0000_0000_0000_0001,
-    /// Something that should not happen, did not happen, or should have happened and didn't
+    /// Something that should not, or should have and didn't, happened
     level_warning = 0b0000_0000_0000_0010,
     /// Something that should never happen, happened
     level_error = 0b0000_0000_0000_0100,
-    /// Something bad which prevents execution happened
+    /// Something bad which prevents engine stability, happened
     level_terminal = 0b0000_0000_0000_1000,
     /// CoalStar system related or catch all
     coal_system = 0b0000_0000_0001_0000,
@@ -43,6 +43,7 @@ pub const ReportCatagory = enum(u16) {
     /// Physics-related
     physics_system = 0b1000_0000_0000_0000,
 };
+//TODO add: setpiece, mesh, update, catching over/underflow, catching worldspace OOB, event
 
 /// Report struct, used to log engine events
 pub const Report = struct {
@@ -86,11 +87,22 @@ pub fn logReportInit(cat: u16, mssg: u32, rel_data: [4]i32) void {
 }
 
 pub fn printReport(report: Report) void {
-    std.debug.print("a thing occurred {} {} {}\n", .{ report.catagory, report.engine_tick, report.message });
+    std.debug.print(
+        "{} {} {s} data: [{},{},{},{}]\n",
+        .{
+            report.catagory,
+            report.engine_tick,
+            getMessageString(report.message),
+            report.relevant_data[0],
+            report.relevant_data[1],
+            report.relevant_data[2],
+            report.relevant_data[3],
+        },
+    );
     //TODO
 }
 
-pub fn getMessageString(message_index: u16) []u8 {
+pub fn getMessageString(message_index: u32) []const u8 {
     switch (message_index) {
         0 => return "Praise be the cube!",
         1 => return "Not yet implemented",
@@ -114,12 +126,13 @@ pub fn getMessageString(message_index: u16) []u8 {
         155 => return "Fragment Shader compilation error",
         157 => return "Shader program link error",
         201 => return "Attempted to render a chunk whose mesh null",
+        301 => return "Attempted to remove an executor which was not subscribed",
         else => return "Report text not yet implemented",
     }
     unreachable;
 }
 
-pub fn getCatagoryString(category: u16) *const u8 {
+pub fn getCatagoryString(category: u16) []const u8 {
     switch (category) {
         0b0000_0000_0000_0001 => return "Information",
         0b0000_0000_0000_0010 => return "Warning",

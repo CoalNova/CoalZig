@@ -37,24 +37,24 @@ fn renderHardware(window: *wnd.Window) void {
     zgl.viewport(0, 0, window.size.x, window.size.y);
 
     //for every active chunk index listed to the focal point
-    for (window.focal_point.active_chunks) |chunk_index| {
-        //check that they aren't too far away
-        const diff = window.focal_point.position.index().differenceAbs(chunk_index);
-        if (diff.x < 2 and diff.y < 2 and diff.z < 1) {
-            //get the chunk
-            if (chk.getChunk(chunk_index) != null) {
-                const chunk = chk.getChunk(chunk_index).?;
+    for (window.focal_point.active_chunks) |index| {
+        //get the chunk
+        if (chk.getChunk(index) != null) {
+            const chunk = chk.getChunk(index).?;
+            if (chunk.mesh != null) {
                 renderTerrain(chunk, window.camera);
-                if (chunk.setpieces.items.len > 0) {
-                    for (chunk.setpieces.items) |setpiece| {
-                        renderHardwareDynamicSetpiece(window.camera, setpiece.*);
-                    }
-                }
+                for (chunk.setpieces.items) |setpiece|
+                    renderHardwareDynamicSetpiece(window.camera, setpiece);
             }
         }
     }
 
     sdl.SDL_GL_SwapWindow(window.sdl_window);
+
+    //TODO handle gl error states internally
+    var gl_err = zgl.getError();
+    if (gl_err > 0)
+        std.debug.print("err {}\n", .{gl_err});
 }
 
 fn renderSoftware(window: *const wnd.Window) void {
@@ -66,14 +66,11 @@ fn renderTextware(window: *const wnd.Window) void {
     _ = window;
 }
 
-fn renderHardwareDynamicSetpiece(camera: cam.Camera, setpiece: stp.Setpiece) void {
+fn renderHardwareDynamicSetpiece(camera: cam.Camera, setpiece: *stp.Setpiece) void {
     const mesh = setpiece.mesh;
     const axial = setpiece.euclid.position.axial();
     const model =
         zmt.mul(zmt.mul(zmt.scaling(setpiece.euclid.scale.x, setpiece.euclid.scale.y, setpiece.euclid.scale.z), zmt.matFromQuat(setpiece.euclid.quaternion)), zmt.translation(axial.x, axial.y, axial.z));
-
-    const mvp: zmt.Mat =
-        zmt.mul(model, camera.mvp_matrix);
 
     zgl.useProgram(mesh.material.shader.program);
     //bind mesh
@@ -81,7 +78,8 @@ fn renderHardwareDynamicSetpiece(camera: cam.Camera, setpiece: stp.Setpiece) voi
 
     //TODO uniform blasting (possibly bounds checked?)
     //assign uniforms
-    zgl.uniformMatrix4fv(mesh.material.shader.mtx_name, 1, zgl.FALSE, &mvp[0][0]);
+    zgl.uniformMatrix4fv(mesh.material.shader.mdl_name, 1, zgl.FALSE, &model[0][0]);
+    zgl.uniformMatrix4fv(mesh.material.shader.vpm_name, 1, zgl.FALSE, &camera.mvp_matrix[0][0]);
     zgl.uniform3f(mesh.material.shader.pst_name, axial.x, axial.y, axial.z);
     //draw
     zgl.drawElements(mesh.drawstyle_enum, mesh.num_elements, zgl.UNSIGNED_INT, null);
@@ -90,9 +88,10 @@ fn renderHardwareDynamicSetpiece(camera: cam.Camera, setpiece: stp.Setpiece) voi
 fn renderTerrain(chunk: *chk.Chunk, camera: cam.Camera) void {
     if (chunk.mesh == null) {
         const category = @enumToInt(cat.level_warning) | @enumToInt(cat.renderer);
-        rpt.logReportInit(category, 201, [4]i32{ chunk.index.x, chunk.index.y, chunk.index.z, 0 });
+        rpt.logReportInit(category, 201, [4]i32{ chunk.index.x, chunk.index.y, camera.euclid.position.index().x, camera.euclid.position.index().y });
         return;
     }
+
     const diff = chunk.index.difference(camera.euclid.position.index());
     const mesh = chunk.mesh.?;
     const model = zmt.mul(zmt.translation(@intToFloat(f32, diff.x) * 1024.0, @intToFloat(f32, diff.y) * 1024.0, 0), zmt.scaling(1, 1, 1));
@@ -104,8 +103,4 @@ fn renderTerrain(chunk: *chk.Chunk, camera: cam.Camera) void {
     zgl.bindVertexArray(mesh.vao);
     zgl.uniformMatrix4fv(mesh.material.shader.mtx_name, 1, zgl.FALSE, &mvp[0][0]);
     zgl.drawElements(mesh.drawstyle_enum, mesh.num_elements, zgl.UNSIGNED_INT, null);
-
-    var gl_err = zgl.getError();
-    if (gl_err > 0)
-        std.debug.print("err {}\n", .{gl_err});
 }

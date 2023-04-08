@@ -95,9 +95,9 @@ pub fn ignite() void {
 
         //TODO disattach focalpoint updates from initialization
         if (window_type == wnd.WindowCategory.hardware or wnd.WindowCategory.software == window_type) {
-            window.?.focal_point.position = pst.Position.init(.{}, .{});
+            window.?.focal_point.position = pst.Position.init(.{ .x = -1, .y = -1, .z = 0 }, .{});
             window.?.focal_point.active_chunks = [_]pnt.Point3{.{ .x = -1, .y = -1, .z = 0 }} ** 25;
-            fcs.updateFocalPoint(&window.?.focal_point);
+            fcs.updateFocalPoint(&window.?.focal_point, pst.Position.init(.{}, .{}));
             window.?.camera.euclid.quaternion = @Vector(4, f32){ 0, 0, 0, 1 };
         }
     }
@@ -152,7 +152,6 @@ pub fn runEngine() bool {
     //render
     for (wnd.getWindowGroup()) |window|
         rnd.renderWindow(window.?);
-
 
     return (!getEngineStateFlag(EngineFlag.ef_quitflag));
 }

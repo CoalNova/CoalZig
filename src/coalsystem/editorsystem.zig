@@ -1,15 +1,11 @@
 const std = @import("std");
 const alc = @import("../coalsystem/allocationsystem.zig");
 const fio = @import("../coalsystem/fileiosystem.zig");
-
+const pnt = @import("../simpletypes/points.zig");
 
 const EditError = error{
     GeneratedHeightRangeOoB,
 };
-
-
-
-
 
 /// Generates a new chunk map and saves under provided name
 /// height_map is a 1Byte per Pixel heightmap of the terrain
@@ -18,87 +14,83 @@ const EditError = error{
 /// map_name is the name of the chunk map files to be generated under
 /// map_size is a touple containing the outer x,y bounds of the map
 ///     note: map bounds start at 0 and work outward towards max
-pub fn generateNewChunkMap(
-    height_map : []u8, 
-    height_mod : u16, 
-    map_name : []const u8, 
-    height_size : .{u32,u32}, 
-    map_size : .{u32, u32}) !void
-{
-    const bytes_per_chunk : .{u32, u32} = .{ height_size.@"0" / map_size.@"0", height_size.@"1" / map_size.@"1" };
-    const height_per_byte : .{u32, u32} = .{512 / bytes_per_chunk.@"0", 512 / bytes_per_chunk.@"1"};
-    
-    var heights : []f32 = alc.gpa_allocator.alloc(f32, 512 * 512);
+pub fn generateNewChunkMap(height_map: []u8, height_mod: u16, map_name: []const u8, height_map_size: pnt.Point2, map_size: pnt.Point2) !void {
+    const bytes_per_chunk: pnt.Point2 = .{ .x = @divTrunc(height_map_size.x, map_size.x), .y = @divTrunc(height_map_size.y, map_size.y) };
+    const height_per_byte: pnt.Point2 = .{ .x = @divTrunc(512, bytes_per_chunk.x), .y = @divTrunc(512, bytes_per_chunk.y) };
+
+    var heights: []f32 = try alc.gpa_allocator.alloc(f32, 512 * 512);
     defer alc.gpa_allocator.free(heights);
-    var chunk_ready_height_data : []u16 = alc.gpa_allocator.alloc(u16, 512 * 512);
+    var chunk_ready_height_data: []u16 = try alc.gpa_allocator.alloc(u16, 512 * 512);
     defer alc.gpa_allocator.free(chunk_ready_height_data);
 
+    const bpcx = @intCast(usize, bytes_per_chunk.x);
+    const bpcy = @intCast(usize, bytes_per_chunk.y);
+    const hmsx = @intCast(usize, height_map_size.x);
+    const hmsy = @intCast(usize, height_map_size.y);
+    const hpbx = @intCast(usize, height_per_byte.x);
+    const hpby = @intCast(usize, height_per_byte.y);
+
     //iterate over chunks
-    for(0..map_size.@"1") |cy|
-        for(0..map_size.@"0") |cx|
-        {
+    for (0..@intCast(usize, map_size.y)) |cy|
+        for (0..@intCast(usize, map_size.x)) |cx| {
+            std.debug.print("Generating fresh heights for {} {} for world \"{s}\" ", .{ cx, cy, map_name });
 
             //iterate over the pixels in the chunk
             //if not perfectly diviseable then this is gonna suck
-            for(0..bytes_per_chunk.@"1") |by|
-                for(0..bytes_per_chunk.@"0") |bx|
-                {
+            for (0..@intCast(usize, bytes_per_chunk.y)) |by|
+                for (0..@intCast(usize, bytes_per_chunk.x)) |bx| {
                     //get height(s) necessary for basic slope molding
                     // c | d
-					// -----
-					// a | b
+                    // -----
+                    // a | b
 
-                    const height_index = cx * bytes_per_chunk + cy * height_size.@"0" * bytes_per_chunk + bx + by * height_size.@"0";
-                    const a : i32 = @as(i32, height_map[height_index]) * height_mod;
-                    const b : i32 = if (cx * bytes_per_chunk + bx + 1 < height_size.@"0") @as(i32, height_map[height_index + 1]) * height_mod else 0;
-                    const c : i32 = if (cy * bytes_per_chunk + by + 1 < height_size.@"1") @as(i32, height_map[height_index + height_size.@"0"]) * height_mod else 0;
-                    const d : i32 = if (cx * bytes_per_chunk + bx + 1 < height_size.@"0" and 
-                                    cy * bytes_per_chunk + by + 1 < height_size.@"1") @as(i32, height_map[height_index + 1 + height_size.@"0"]) * height_mod else 0;
+                    const height_index = cx * bpcx + cy * hmsx * bpcx + bx + by * hmsx;
+                    const a: i32 = @as(i32, height_map[height_index]) * height_mod;
+                    const b: i32 = if (cx * bpcx + bx + 1 < hmsx) @as(i32, height_map[height_index + 1]) * height_mod else 0;
+                    const c: i32 = if (cy * bpcx + by + 1 < hmsy) @as(i32, height_map[height_index + hmsx]) * height_mod else 0;
+                    const d: i32 = if (cx * bpcx + bx + 1 < hmsx and
+                        cy * bpcy + by + 1 < hmsy) @as(i32, height_map[height_index + 1 + hmsx]) * height_mod else 0;
 
+                    for (0..hpby) |ay|
+                        for (0..hpbx) |ax| {
+                            const index = (bx * hpbx + by * hpbx * 512 + ax + ay * 512);
 
-                    for (0..height_per_byte.@"1") |ay|
-                        for (0..height_per_byte.@"0") |ax|
-                        {
+                            const x_scale: f32 = @intToFloat(f32, ax) / @intToFloat(f32, hpbx);
+                            const y_scale: f32 = @intToFloat(f32, ay) / @intToFloat(f32, hpby);
+                            const invrt_x: f32 = 1.0 - x_scale;
+                            const invrt_y: f32 = 1.0 - y_scale;
 
-                            const index = (bx * height_per_byte + by * height_per_byte * 512 + ax + ay * 512);
+                            const height = (@intToFloat(f32, a) * invrt_x + @intToFloat(f32, b) * x_scale) * invrt_y +
+                                (@intToFloat(f32, c) * invrt_x + @intToFloat(f32, d) * x_scale) * y_scale;
 
-                            const x_scale : f32 = @as(f32, ax) / @as(f32, height_per_byte);
-                            const y_scale : f32 = @as(f32, ay) / @as(f32, height_per_byte);
-                            const invrt_x : f32 = 1.0 - x_scale;
-                            const invrt_y : f32 = 1.0 - y_scale;
-
-                            const height = (@as(f32, a) * invrt_x + @as(f32, b) * x_scale) * invrt_y +
-                                (@as(f32, c) * invrt_x + @as(f32, d) * x_scale) * y_scale;
-
-                            heights[index] = height ;
+                            heights[index] = height;
                         };
                 };
-            
+
             //convert to collapsed height data
 
             //capture the bounds, hopefully nothing has generated ridiculously high data
-            var tollest : f32 = 0;
-            var smollest : f32 = 9999999.0;
-            for(heights) |h|
-            {
+            var tollest: f32 = 0;
+            var smollest: f32 = 9999999.0;
+            for (heights) |h| {
                 if (h > tollest) tollest = h;
                 if (h < smollest) smollest = h;
             }
 
             //check that possible ranges isn't exceeded
-            if (tollest - smollest > 5500.0)
-            {
-                std.debug.print("Generated chunk height range exceeded! {},{}", .{tollest, smollest});
+            if (tollest - smollest > 5500.0) {
+                std.debug.print("Generated chunk height range exceeded! {},{}", .{ tollest, smollest });
                 return EditError.GeneratedHeightRangeOoB;
             }
 
             //capture height data
-            var offset_mod : u8 = @truncate(u8, @trunc(smollest / 1024));
-            for (heights, 0..) |h, i| 
-                chunk_ready_height_data[i] = @truncate(u16, @trunc((h - (@as(f32, offset_mod) * 1024)) * 10));
-            
-            try fio.saveChunkHeights(chunk_ready_height_data, offset_mod, .{.x = cx, .y = cy, .z = 0}, map_name);
+            var offset_mod: u8 = @floatToInt(u8, smollest / 1024);
+            for (heights, 0..) |h, i|
+                chunk_ready_height_data[i] = @floatToInt(u16, (h - (@intToFloat(f32, offset_mod) * 1024)) * 10);
 
+            std.debug.print(" complete!\n\tsaving ", .{});
+
+            try fio.saveChunkHeights(chunk_ready_height_data, offset_mod, .{ .x = @intCast(i32, cx), .y = @intCast(i32, cy), .z = 0 }, map_name);
+            std.debug.print("done!\n", .{});
         };
-
 }

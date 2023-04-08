@@ -42,9 +42,9 @@ pub const Position = struct {
 
     pub inline fn round(self: Position) Position {
         var p = Position{};
-        p.x = self.x ^ (self.x & (((1 << lat_major) - 1) << lat_minor));
-        p.y = self.y ^ (self.y & (((1 << lat_major) - 1) << lat_minor));
-        p.z = self.z ^ (self.z & (((1 << vrt_major) - 1) << vrt_minor));
+        p.x = self.x ^ (self.x & ((1 << lat_minor) - 1));
+        p.y = self.y ^ (self.y & ((1 << lat_minor) - 1));
+        p.z = self.z ^ (self.z & ((1 << vrt_major) - 1));
         return p;
     }
 
@@ -93,8 +93,8 @@ pub const Position = struct {
     pub inline fn squareDistance(self: Position, to_dist: Position) f32 {
         const _a = self.axial();
         const _b = .{
-            .x = _a.x + @intToFloat(f32, self.index().x - to_dist.index().x) * 1024.0,
-            .y = _a.y + @intToFloat(f32, self.index().y - to_dist.index().y) * 1024.0,
+            .x = to_dist.axial().x + @intToFloat(f32, self.index().x - to_dist.index().x) * 1024.0,
+            .y = to_dist.axial().y + @intToFloat(f32, self.index().y - to_dist.index().y) * 1024.0,
             .z = 0,
         };
         return (_a.x - _b.x) * (_a.x - _b.x) + (_a.y - _b.y) * (_a.y - _b.y);

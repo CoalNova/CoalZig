@@ -35,8 +35,31 @@ const cms = @import("coalsystem/coalmathsystem.zig");
 const evs = @import("coalsystem/eventsystem.zig");
 const pst = @import("coaltypes/position.zig");
 const gls = @import("coalsystem/glsystem.zig");
+const eds = @import("coalsystem/editorsystem.zig");
+const fio = @import("coalsystem/fileiosystem.zig");
+const fcs = @import("coaltypes/focus.zig");
 
 pub fn main() void {
+    if (false) {
+        var map = fio.loadBMP("./assets/world/map.bmp") catch |err| {
+            std.debug.print("file error: {}\n", .{err});
+            return;
+        };
+
+        // var chunk_bounds = chk.getMapBounds();
+
+        eds.generateNewChunkMap(
+            map.px,
+            3,
+            "dawn",
+            .{ .x = @intCast(i32, map.width), .y = @intCast(i32, map.height) },
+            .{ .x = 8, .y = 8 },
+        ) catch |err| {
+            std.debug.print("editor error: {}\n", .{err});
+            return;
+        };
+    }
+
     // Start system,
     sys.ignite();
     // Defer closing of system
@@ -46,8 +69,9 @@ pub fn main() void {
     var camera = &window.camera;
     camera.euclid.position = pst.Position.init(.{ .x = 0, .y = 0, .z = 0 }, .{ .x = 0, .y = 0, .z = 1.75 });
     var cube = stp.generateSetPiece(.{}, chk.getChunk(window.focal_point.position.index()).?).?;
+    //sys.setEngineStateFlag(sys.EngineFlag.ef_quitflag);
 
-    //main loop
+    //debug testing loop
     while (sys.runEngine()) {
         var new_x: f32 = 0;
         var new_y: f32 = 0;
@@ -84,7 +108,7 @@ pub fn main() void {
         if (evs.getKeyHeld(sys.sdl.SDL_SCANCODE_Q)) rot_y += 0.04;
         if (evs.getKeyHeld(sys.sdl.SDL_SCANCODE_E)) rot_y -= 0.04;
 
-        const speed_mod: f32 = if (evs.getKeyHeld(sys.sdl.SDL_SCANCODE_LSHIFT)) 10.0 else 1.0;
+        const speed_mod: f32 = if (evs.getKeyHeld(sys.sdl.SDL_SCANCODE_LSHIFT)) 30.0 else 3.0;
 
         if (evs.getKeyDown(sys.sdl.SDL_SCANCODE_SPACE))
             gls.toggleWireFrame();
@@ -93,10 +117,20 @@ pub fn main() void {
 
         camera.euclid.position =
             camera.euclid.position.addAxial(.{
-            .x = new_x * @cos(cam_rot[2]) + new_y * @sin(cam_rot[2]) * speed_mod,
-            .y = new_y * @cos(cam_rot[2]) - new_x * @sin(cam_rot[2]) * speed_mod,
+            .x = (new_x * @cos(cam_rot[2]) + new_y * @sin(cam_rot[2])) * speed_mod,
+            .y = (new_y * @cos(cam_rot[2]) - new_x * @sin(cam_rot[2])) * speed_mod,
             .z = 0,
         });
+
+        camera.euclid.position = pst.Position.init(
+            camera.euclid.position.index(),
+            .{
+                .x = camera.euclid.position.axial().x,
+                .y = camera.euclid.position.axial().y,
+                .z = chk.getHeight(camera.euclid.position) + 100.0,
+            },
+        );
+
         camera.euclid.quaternion =
             zmt.qmul(zmt.qmul(zmt.quatFromRollPitchYaw(0, 0, rot_z), camera.euclid.quaternion), zmt.quatFromRollPitchYaw(rot_x, rot_y, 0));
 
@@ -108,6 +142,12 @@ pub fn main() void {
             .y = 1,
             .z = -0.75 + @sin(@intToFloat(f32, sys.getEngineTick()) * 0.01) * 0.3,
         });
+
+        const dist = camera.euclid.position.squareDistance(window.focal_point.position);
+        if (dist > 256) {
+            fcs.updateFocalPoint(&window.focal_point, camera.euclid.position);
+        }
+
         cube.euclid.quaternion = zmt.qmul(cube.euclid.quaternion, zmt.quatFromRollPitchYaw(0.01, 0.02, 0.03));
     }
 }

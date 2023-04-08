@@ -21,48 +21,56 @@ pub fn checkFocalPoint(focal_point: Focus, new_position: pst.Position) bool {
     return (((f.x - a.x) * (f.x - a.x) + (f.y - a.y) * (f.y - a.y)) > focal_point.range * focal_point.range);
 }
 
-pub fn updateFocalPoint(focal_point: *Focus) void {
-    const focal_index = focal_point.position.index();
+pub fn updateFocalPoint(focal_point: *Focus, position: pst.Position) void {
+    if (!position.index().equals(focal_point.position.index())) {
+        focal_point.position = position;
 
-    for (&focal_point.active_chunks) |*chunk_index| {
-        if ((chunk_index.x - focal_index.x) * (chunk_index.x - focal_index.x) > 4 or
-            (chunk_index.y - focal_index.y) * (chunk_index.y - focal_index.y) > 4)
-        {
-            chk.unloadChunk(chunk_index.*);
-            chunk_index.x = -1;
-            chunk_index.y = -1;
-            chunk_index.z = -1;
-        }
-    }
-
-    for (0..5) |y|
-        for (0..5) |x| {
-            const index = pnt.Point3.init(focal_index.x + @intCast(i32, x) - 2, focal_index.y + @intCast(i32, y) - 2, 0);
+        const focal_index = focal_point.position.index();
+        for (focal_point.active_chunks) |index| {
             if (chk.indexIsMapValid(index)) {
-                var contains = false;
-                cnt_blk: for (focal_point.active_chunks) |chunk_index|
-                    if (chunk_index.x == index.x and chunk_index.y == index.y) {
-                        contains = true;
-                        break :cnt_blk;
-                    };
-                if (!contains) {
-                    plc_blk: for (&focal_point.active_chunks) |*chunk_index|
-                        if (chunk_index.x == -1 and chunk_index.y == -1) {
-                            chunk_index.x = index.x;
-                            chunk_index.y = index.y;
-                            chunk_index.z = index.z;
-                            chk.loadChunk(index);
-                            break :plc_blk;
-                        };
-                }
-                std.debug.print("Trying terrain mesh for chunk: {}, {}: \n", .{ index.x, index.y });
+                const diff = focal_index.differenceAbs(index);
+                if (diff.x > 1 or diff.y > 1)
+                    msh.destroyTerrainMesh(chk.getChunk(index).?); // check for chunkiness
+                if (diff.x > 2 or diff.y > 2)
+                    chk.unloadChunk(index);
+            }
+        }
 
-                if (std.math.absCast(focal_index.x - @intCast(i32, index.x)) < 2 and focal_index.y + @intCast(i32, index.y) < 2) {
-                    var c: *chk.Chunk = chk.getChunk(index).?;
-                    if (c.mesh == null) {
-                        msh.constructBaseTerrainMesh(c, focal_point);
-                    }
+        //stack set of applicable indices
+        var indices: [25]pnt.Point3 = [_]pnt.Point3{.{}} ** 25;
+        for (0..5) |y|
+            for (0..5) |x| {
+                indices[x + y * 5] = .{ .x = @intCast(i32, x) + focal_index.x - 2, .y = @intCast(i32, y) + focal_index.y - 2, .z = 0 };
+            };
+
+        for (indices) |index| {
+            if (chk.indexIsMapValid(index)) {
+                load_block: {
+                    for (focal_point.active_chunks) |active_index|
+                        if (index.equals(active_index)) break :load_block;
+                    chk.loadChunk(index);
                 }
             }
-        };
+        }
+
+        for (indices, 0..) |index, i| {
+            if (chk.indexIsMapValid(index)) {
+                const blob = focal_point.position.index().differenceAbs(index);
+                if (blob.x < 2 and blob.y < 2) {
+                    std.debug.print("constructing mesh for {} {}\n", .{ index.x, index.y });
+                    msh.constructBaseTerrainMesh(chk.getChunk(index).?, focal_point);
+                }
+            }
+            focal_point.active_chunks[i] = index;
+        }
+    } else {
+        focal_point.position = position;
+        for (focal_point.active_chunks) |index| {
+            if (chk.indexIsMapValid(index)) {
+                const chunk = chk.getChunk(index).?;
+                if (chunk.mesh != null)
+                    msh.updateTerrainMeshResolution(chunk, focal_point);
+            }
+        }
+    }
 }
