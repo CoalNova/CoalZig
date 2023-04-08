@@ -6,7 +6,13 @@
 //!
 //!     Currently the CoalStarSystem concerns itself with engine initialization,
 //! deinitialization, and engine frame operation. Eventually it will need to
-//! handle calling the thread system and communing with the various helpers.
+//! handle calling the thread system and possibly communing coordination.
+//!
+//!     The engine state flags are a collective u16 (maybe more in the future)
+//! which track what flowpaths are available for engine processing. These
+//! should include hardware rendering, software rendering, terminal
+//! availability, event processing, execution processing, worldspace load
+//! status, and more.
 //!
 
 pub const sdl = @cImport({
@@ -26,6 +32,40 @@ const gls = @import("../coalsystem/glsystem.zig");
 const pst = @import("../coaltypes/position.zig");
 const shd = @import("../coaltypes/shader.zig");
 
+/// Engine Flags are operational guidelines for any special engine operations
+/// TODO validate if engine quit should be engine sustain,
+///     and if engine state 0x0000 should be engine quit
+pub const EngineFlag = enum(u16) {
+    /// Engine Quit Flag (change tbd)
+    ef_quitflag = 0b0000_0000_0000_0001,
+    /// Terminal output is allowed
+    ef_term_option = 0b0000_0000_0000_0010,
+    /// OpenGL has been initialized
+    ef_gl_initialized = 0b0000_0000_0000_0100,
+    /// Worldspace has been initialized, and gameplay may begin
+    ef_world_initialized = 0b0000_0000_0000_1000,
+    /// Audio system initialized and ready to use
+    ef_audio_initialized = 0b0000_0000_0001_0000,
+    /// Gamepad priority (for features like rumble)
+    ef_gpad_initialized = 0b0000_0000_0010_0000,
+    /// Whether the engine has multiple threads available
+    ef_multithread = 0b0000_0000_0100_0000,
+    /// SDL Poll events are available
+    ef_process_events = 0b0000_0001_0000_0000,
+    /// Software Rendering is available
+    ef_software_render = 0b0000_0010_0000_0000,
+    /// Hardware Rendering is available
+    ef_hardware_render = 0b0000_0100_0000_0000,
+    /// Executor may commence
+    ef_executor_live = 0b0001_0000_0000_0000,
+    /// Ingame simulation may commence
+    ef_timescale_live = 0b0010_0000_0000_0000,
+    /// TBD External utility
+    ef_integrated_ext = 0b0100_0000_0000_0000,
+    /// Runs the engine in a safe-mode-esque system
+    ef_debug_mode = 0b1000_0000_0000_0000,
+};
+
 // The current tic of the engine,
 // used for logging and perhaps indescriminately timed occurances
 var engine_tick: usize = 0;
@@ -33,14 +73,6 @@ var engine_tick: usize = 0;
 // the current engine state
 // seperate from any game event, this tracks engine specific details
 var engine_state: u16 = 0;
-
-/// Engine Flags are operational guidelines for any special engine operations
-/// TODO attempt to conceptualize necessary engine modes required
-pub const EngineFlag = enum(u16) { ef_quitflag = 0b0000_0000_0000_0001, ef_term_option = 0b0000_0000_0000_0010, ef_execute_render = 0b0000_0000_0000_0100, ef_process_events = 0b0000_0000_0000_1000, ef_gl_initialized = 0b0000_0000_0001_0000 };
-
-// hardware env variables
-pub var max_tex_layers: i32 = 0;
-pub var max_tex_binds: i32 = 0;
 
 pub fn ignite() void {
     rpt.initLog() catch |err| {
@@ -127,12 +159,19 @@ pub fn getEngineState() u16 {
     return engine_state;
 }
 
-/// Sets a flag on the engine state bit array
+/// Sets a flag on the engine state flags
+///     please use caution
 pub fn setEngineStateFlag(engine_flag: EngineFlag) void {
     engine_state |= @enumToInt(engine_flag);
 }
 
-/// Returns if the provided flag is set
+/// Unsets a flag on the engine state flags
+///     please use caution
+pub fn unsetEngineStateFlag(engine_flag: EngineFlag) void {
+    engine_state &= ~@enumToInt(engine_flag);
+}
+
+/// Returns if the supplied flag is set in the engine state flags
 pub fn getEngineStateFlag(engine_flag: EngineFlag) bool {
     return (@enumToInt(engine_flag) & engine_state) != 0;
 }

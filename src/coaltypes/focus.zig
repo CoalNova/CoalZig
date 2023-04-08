@@ -58,7 +58,7 @@ pub fn updateFocalPoint(focal_point: *Focus, position: pst.Position) void {
                 const blob = focal_point.position.index().differenceAbs(index);
                 if (blob.x < 2 and blob.y < 2) {
                     std.debug.print("constructing mesh for {} {}\n", .{ index.x, index.y });
-                    msh.constructBaseTerrainMesh(chk.getChunk(index).?, focal_point);
+                    msh.constructBaseTerrainMesh(chk.getChunk(index).?, focal_point.position);
                 }
             }
             focal_point.active_chunks[i] = index;
@@ -69,7 +69,7 @@ pub fn updateFocalPoint(focal_point: *Focus, position: pst.Position) void {
             if (chk.indexIsMapValid(index)) {
                 const chunk = chk.getChunk(index).?;
                 if (chunk.mesh != null)
-                    msh.updateTerrainMeshResolution(chunk, focal_point);
+                    msh.updateTerrainMeshResolution(chunk, focal_point.position);
             }
         }
     }

@@ -89,7 +89,7 @@ pub fn destroyTerrainMesh(chunk: *chk.Chunk) void {
     }
 }
 
-pub fn constructBaseTerrainMesh(chunk: *chk.Chunk, focal_point: *fcs.Focus) void {
+pub fn constructBaseTerrainMesh(chunk: *chk.Chunk, focal_position: pst.Position) void {
 
     //probably check that mesh is not already constructed
     chunk.mesh = alc.gpa_allocator.create(Mesh) catch |err| {
@@ -185,28 +185,50 @@ pub fn constructBaseTerrainMesh(chunk: *chk.Chunk, focal_point: *fcs.Focus) void
     zgl.enableVertexAttribArray(0);
     zgl.enableVertexAttribArray(1);
 
-    updateTerrainMeshResolution(chunk, focal_point);
+    updateTerrainMeshResolution(chunk, focal_position);
 }
 
-pub fn updateTerrainMeshResolution(chunk: *chk.Chunk, focal_point: *fcs.Focus) void {
+pub fn updateTerrainMeshResolution(chunk: *chk.Chunk, focal_position: pst.Position) void {
     var new_ibo = std.ArrayList(u32).init(alc.gpa_allocator);
     defer new_ibo.deinit();
 
-    const index = chunk.index.difference(focal_point.position.index());
-    const axial = focal_point.position.axial().add(.{ .x = @intToFloat(f32, index.x * 1024), .y = @intToFloat(f32, index.x * 1024), .z = 0 });
-    terrainMeshResolutionSubRun(axial, &new_ibo, 0, 0, 256);
+    const index = chunk.index.difference(focal_position.index());
+    const axial = focal_position.axial().add(.{ .x = @intToFloat(f32, index.x * 1024), .y = @intToFloat(f32, index.y * 1024), .z = 0 });
+    //terrainMeshResolutionSubRun(axial, &new_ibo, 0, 0, 256);
+
+    for (0..1024) |y|
+        for (0..1024) |x| {
+            const dist = (axial.x - (@intToFloat(f32, x) - 512.0)) * (axial.x - (@intToFloat(f32, x) - 512.0)) +
+                (axial.y - (@intToFloat(f32, y) - 512.0)) * (axial.y - (@intToFloat(f32, y) - 512.0));
+            if (dist < 8) {
+                std.debug.print("{d:.3} {d:.3}\n {d:.3} {d:.3}\n {d:.3} {d:.3}\n", .{
+                    axial.x,
+                    axial.y,
+                    focal_position.axial().x,
+                    focal_position.axial().y,
+                    @intToFloat(f32, x) - 512.0,
+                    @intToFloat(f32, y) - 512.0,
+                });
+                procFace(x, y, 1, &new_ibo);
+            }
+        };
 
     if (chunk.mesh.?.ibo != 0) {
         //delete ibo
         zgl.deleteBuffers(1, &chunk.mesh.?.ibo);
     }
-
     chunk.mesh.?.num_elements = @intCast(i32, new_ibo.items.len);
 
     //generate and attach ibo
     zgl.genBuffers(1, &chunk.mesh.?.ibo);
     zgl.bindBuffer(zgl.ELEMENT_ARRAY_BUFFER, chunk.mesh.?.ibo);
     zgl.bufferData(zgl.ELEMENT_ARRAY_BUFFER, @intCast(isize, @sizeOf(u32) * new_ibo.items.len), @ptrCast(?*const anyopaque, new_ibo.items), zgl.STATIC_DRAW);
+
+    std.debug.print("{}, {}, {}\n", .{
+        chunk.mesh.?.ibo,
+        chunk.mesh.?.num_elements,
+        new_ibo.items.len,
+    });
 }
 
 fn terrainMeshResolutionSubRun(focal_axial: pst.vct.Vector3, new_ibo: *std.ArrayList(u32), cur_x: usize, cur_y: usize, stride: usize) void {
@@ -234,4 +256,16 @@ fn terrainMeshResolutionSubRun(focal_axial: pst.vct.Vector3, new_ibo: *std.Array
                 new_ibo.append(@truncate(u32, index + stride * width)) catch return;
             }
         };
+}
+
+fn procFace(x: usize, y: usize, stride: usize, new_ibo: *std.ArrayList(u32)) void {
+    const width = 1025;
+    const index = x + y * width;
+    std.debug.print("gen: {} {} = {}\n", .{ x, y, index });
+    new_ibo.append(@truncate(u32, index)) catch return;
+    new_ibo.append(@truncate(u32, index + stride)) catch return;
+    new_ibo.append(@truncate(u32, index + stride + stride * width)) catch return;
+    new_ibo.append(@truncate(u32, index)) catch return;
+    new_ibo.append(@truncate(u32, index + stride + stride * width)) catch return;
+    new_ibo.append(@truncate(u32, index + stride * width)) catch return;
 }

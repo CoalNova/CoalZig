@@ -127,7 +127,7 @@ pub fn main() void {
             .{
                 .x = camera.euclid.position.axial().x,
                 .y = camera.euclid.position.axial().y,
-                .z = chk.getHeight(camera.euclid.position) + 100.0,
+                .z = chk.getHeight(camera.euclid.position) + 0.0,
             },
         );
 

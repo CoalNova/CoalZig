@@ -1,3 +1,17 @@
+//! The System responsible for handling Events and Update Execution
+//!
+//!     The Events are managed by taking polled SDL events. Keypress/mouse
+//! inputs are handled by passing the scancode and input (as a struct) in to
+//! a collection. When a key is first depressed, the state is flipped to
+//! 'down'. The next frame, should the key still be depressed, a state change
+//! is applied across the collection, adjusting all 'down' states to 'held'
+//! states. Upon key release, the state is changed to 'up'. Following, the next
+//! frame a blanket operation is performed which changes any 'up' state to
+//! 'off'. The 'off' state is equatable to an empty state for further presses.
+//!
+//!     Quit events taken from SDL polling are transferred over to the engine
+//! state flags.
+//!
 const std = @import("std");
 const sys = @import("../coalsystem/coalsystem.zig");
 const wnd = @import("../coaltypes/window.zig");
@@ -89,21 +103,21 @@ pub inline fn getKeyUp(scancode: sdl.SDL_Scancode) bool {
     return matchKeyState(scancode, InputStates.up);
 }
 
+/// The executor... interface?
 pub const IExecutor = struct {
-    executeFn: fn (*IExecutor) void,
-    pub fn execute(executor: *IExecutor) void {
-        return executor.executeFn(executor);
-    }
+    executeFn: *fn (*IExecutor) void
 };
 
 var perFrameExecutors: std.ArrayList(*IExecutor) = undefined;
+/// Initialize the per-frame execution list
 pub fn initPerFrameExecutors() void {
     perFrameExecutors = std.ArrayList(*IExecutor).init(alc.gpa_allocator);
 }
-/// Executes all subscribed functors
+/// Executes all subscribed executors per frame
 pub fn executePerFrame() void {
     for (perFrameExecutors) |executor| executor.executeFn();
 }
+/// Subscribe, comment, and like an executor to the per-frame list
 pub fn subscribePerFrame(executor: *IExecutor) !void {
     perFrameExecutors.append(executor) catch |err|
         {
@@ -114,6 +128,7 @@ pub fn subscribePerFrame(executor: *IExecutor) !void {
         return err;
     };
 }
+/// Remove an executor from the per-frame list
 pub fn unsubscribePerFrame(executor: *IExecutor) void {
     if (perFrameExecutors.items.len == 1) {
         perFrameExecutors.clearAndFree();
@@ -130,14 +145,35 @@ pub fn unsubscribePerFrame(executor: *IExecutor) void {
     rpt.logReportInit(cat, 301, [4]i32{ perFrameExecutors.items.len, 0, 0, 0 });
 }
 
-var iterativeExecutors = std.ArrayList(*IExecutor);
+var iterativeExecutors :std.ArrayList(*IExecutor) = undefined;
 var iterativeIndexer: usize = 0;
-pub fn initIterativeExecutors() void {}
-/// Runs execution serialy
+pub fn initIterativeExecutors() void 
+{
+    iterativeExecutors = std.ArrayList(*IExecutor).init(alc.gpa_allocator);
+}
+pub fn deinitIterativeExecutors() void 
+{
+    iterativeExecutors.deinit();
+}
+/// Runs execution serialy, one element per frame
 pub fn executeIterative() void {}
+pub fn subscribeIterative() !void {}
+pub fn unsubscribeIterative() void {}
 
 var balancedExecutors: []std.ArrayList(*IExecutor) = undefined;
-pub fn initBalancedExecutors() void {}
+pub fn initBalancedExecutors(balance_len :usize) void 
+{
+    balancedExecutors = alc.gpa_allocator.alloc(*IExecutor, balance_len);
+    for(0..balance_len) |index|
+        balancedExecutors.items[index] = std.ArrayList(*IExecutor).init(alc.gpa_allocator);    
+}
+pub fn deinitBalancedExecutionors() void
+{
+    for(&balancedExecutors) |*e|
+        e.deinit();
+    alc.gpa_allocator.free(balancedExecutors);
+}
 /// Spreads execution over a predefined series of balanced
 /// The argument is an index
 pub fn executeBalanced() void {}
+pub fn subscribeBalanced() void {}
