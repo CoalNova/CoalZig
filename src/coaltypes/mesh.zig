@@ -192,26 +192,11 @@ pub fn updateTerrainMeshResolution(chunk: *chk.Chunk, focal_position: pst.Positi
     var new_ibo = std.ArrayList(u32).init(alc.gpa_allocator);
     defer new_ibo.deinit();
 
-    const index = chunk.index.difference(focal_position.index());
-    const axial = focal_position.axial().add(.{ .x = @intToFloat(f32, index.x * 1024), .y = @intToFloat(f32, index.y * 1024), .z = 0 });
-    //terrainMeshResolutionSubRun(axial, &new_ibo, 0, 0, 256);
+    zgl.bindVertexArray(chunk.mesh.?.vao);
 
-    for (0..1024) |y|
-        for (0..1024) |x| {
-            const dist = (axial.x - (@intToFloat(f32, x) - 512.0)) * (axial.x - (@intToFloat(f32, x) - 512.0)) +
-                (axial.y - (@intToFloat(f32, y) - 512.0)) * (axial.y - (@intToFloat(f32, y) - 512.0));
-            if (dist < 8) {
-                std.debug.print("{d:.3} {d:.3}\n {d:.3} {d:.3}\n {d:.3} {d:.3}\n", .{
-                    axial.x,
-                    axial.y,
-                    focal_position.axial().x,
-                    focal_position.axial().y,
-                    @intToFloat(f32, x) - 512.0,
-                    @intToFloat(f32, y) - 512.0,
-                });
-                procFace(x, y, 1, &new_ibo);
-            }
-        };
+    const index = focal_position.index().difference(chunk.index);
+    const axial = focal_position.axial().add(.{ .x = @intToFloat(f32, index.x * 1024), .y = @intToFloat(f32, index.y * 1024), .z = 0 });
+    terrainMeshResolutionSubRun(axial, &new_ibo, 0, 0, 256);
 
     if (chunk.mesh.?.ibo != 0) {
         //delete ibo
@@ -223,49 +208,35 @@ pub fn updateTerrainMeshResolution(chunk: *chk.Chunk, focal_position: pst.Positi
     zgl.genBuffers(1, &chunk.mesh.?.ibo);
     zgl.bindBuffer(zgl.ELEMENT_ARRAY_BUFFER, chunk.mesh.?.ibo);
     zgl.bufferData(zgl.ELEMENT_ARRAY_BUFFER, @intCast(isize, @sizeOf(u32) * new_ibo.items.len), @ptrCast(?*const anyopaque, new_ibo.items), zgl.STATIC_DRAW);
-
-    std.debug.print("{}, {}, {}\n", .{
-        chunk.mesh.?.ibo,
-        chunk.mesh.?.num_elements,
-        new_ibo.items.len,
-    });
 }
 
 fn terrainMeshResolutionSubRun(focal_axial: pst.vct.Vector3, new_ibo: *std.ArrayList(u32), cur_x: usize, cur_y: usize, stride: usize) void {
-    const width = 1025;
+    //const width = 1025;
 
     for (0..4) |y|
         for (0..4) |x| {
-            const diffx = focal_axial.x - (@intToFloat(f32, cur_x + x * stride + stride >> 1) - 512.0);
-            const diffy = focal_axial.y - (@intToFloat(f32, cur_y + y * stride + stride >> 1) - 512.0);
+            const diffx = focal_axial.x - (@intToFloat(f32, cur_x + x * stride + (stride >> 1)) - 512.0);
+            const diffy = focal_axial.y - (@intToFloat(f32, cur_y + y * stride + (stride >> 1)) - 512.0);
             const dist = diffx * diffx + diffy * diffy;
 
-            const valid_inner: bool = dist < @intToFloat(f32, (stride * stride));
+            const valid_inner: bool = dist <= @intToFloat(f32, (stride * stride));
             const valid_outer: bool = dist > @intToFloat(f32, (stride * stride));
 
             if (valid_inner and stride > 1)
-                terrainMeshResolutionSubRun(focal_axial, new_ibo, cur_x + x * stride, cur_y + y * stride * width, if (stride == 1) 1 else stride / 4);
+                terrainMeshResolutionSubRun(focal_axial, new_ibo, cur_x + x * stride, cur_y + y * stride, stride >> 2);
 
-            const index = cur_x + x * stride + cur_y + y * stride * width;
-            if (valid_outer) {
-                new_ibo.append(@truncate(u32, index)) catch return;
-                new_ibo.append(@truncate(u32, index + stride)) catch return;
-                new_ibo.append(@truncate(u32, index + stride + stride * width)) catch return;
-                new_ibo.append(@truncate(u32, index)) catch return;
-                new_ibo.append(@truncate(u32, index + stride + stride * width)) catch return;
-                new_ibo.append(@truncate(u32, index + stride * width)) catch return;
-            }
+            if (valid_outer or stride == 1)
+                procFace(cur_x + x * stride, cur_y + y * stride, stride, new_ibo);
         };
 }
 
 fn procFace(x: usize, y: usize, stride: usize, new_ibo: *std.ArrayList(u32)) void {
     const width = 1025;
     const index = x + y * width;
-    std.debug.print("gen: {} {} = {}\n", .{ x, y, index });
-    new_ibo.append(@truncate(u32, index)) catch return;
-    new_ibo.append(@truncate(u32, index + stride)) catch return;
-    new_ibo.append(@truncate(u32, index + stride + stride * width)) catch return;
-    new_ibo.append(@truncate(u32, index)) catch return;
-    new_ibo.append(@truncate(u32, index + stride + stride * width)) catch return;
-    new_ibo.append(@truncate(u32, index + stride * width)) catch return;
+    new_ibo.append(@truncate(u32, index)) catch return std.debug.print("ohno\n", .{});
+    new_ibo.append(@truncate(u32, index + stride)) catch return std.debug.print("ohno\n", .{});
+    new_ibo.append(@truncate(u32, index + stride + stride * width)) catch return std.debug.print("ohno\n", .{});
+    new_ibo.append(@truncate(u32, index)) catch return std.debug.print("ohno\n", .{});
+    new_ibo.append(@truncate(u32, index + stride + stride * width)) catch return std.debug.print("ohno\n", .{});
+    new_ibo.append(@truncate(u32, index + stride * width)) catch return std.debug.print("ohno\n", .{});
 }

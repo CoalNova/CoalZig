@@ -108,7 +108,7 @@ pub fn main() void {
         if (evs.getKeyHeld(sys.sdl.SDL_SCANCODE_Q)) rot_y += 0.04;
         if (evs.getKeyHeld(sys.sdl.SDL_SCANCODE_E)) rot_y -= 0.04;
 
-        const speed_mod: f32 = if (evs.getKeyHeld(sys.sdl.SDL_SCANCODE_LSHIFT)) 30.0 else 3.0;
+        const speed_mod: f32 = if (evs.getKeyHeld(sys.sdl.SDL_SCANCODE_LSHIFT)) 20.0 else 0.3;
 
         if (evs.getKeyDown(sys.sdl.SDL_SCANCODE_SPACE))
             gls.toggleWireFrame();
@@ -127,7 +127,7 @@ pub fn main() void {
             .{
                 .x = camera.euclid.position.axial().x,
                 .y = camera.euclid.position.axial().y,
-                .z = chk.getHeight(camera.euclid.position) + 0.0,
+                .z = chk.getHeight(camera.euclid.position) + 40.75,
             },
         );
 
