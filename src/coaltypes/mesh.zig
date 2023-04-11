@@ -233,10 +233,10 @@ fn terrainMeshResolutionSubRun(focal_axial: pst.vct.Vector3, new_ibo: *std.Array
 fn procFace(x: usize, y: usize, stride: usize, new_ibo: *std.ArrayList(u32)) void {
     const width = 1025;
     const index = x + y * width;
-    new_ibo.append(@truncate(u32, index)) catch return std.debug.print("ohno\n", .{});
-    new_ibo.append(@truncate(u32, index + stride)) catch return std.debug.print("ohno\n", .{});
-    new_ibo.append(@truncate(u32, index + stride + stride * width)) catch return std.debug.print("ohno\n", .{});
-    new_ibo.append(@truncate(u32, index)) catch return std.debug.print("ohno\n", .{});
-    new_ibo.append(@truncate(u32, index + stride + stride * width)) catch return std.debug.print("ohno\n", .{});
-    new_ibo.append(@truncate(u32, index + stride * width)) catch return std.debug.print("ohno\n", .{});
+    new_ibo.append(@truncate(u32, index)) catch return;
+    new_ibo.append(@truncate(u32, index + stride)) catch return;
+    new_ibo.append(@truncate(u32, index + stride + stride * width)) catch return;
+    new_ibo.append(@truncate(u32, index)) catch return;
+    new_ibo.append(@truncate(u32, index + stride + stride * width)) catch return;
+    new_ibo.append(@truncate(u32, index + stride * width)) catch return;
 }
