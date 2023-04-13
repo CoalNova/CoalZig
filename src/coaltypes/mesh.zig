@@ -219,8 +219,8 @@ fn terrainMeshResolutionSubRun(focal_axial: pst.vct.Vector3, new_ibo: *std.Array
             const diffy = focal_axial.y - (@intToFloat(f32, cur_y + y * stride + (stride >> 1)) - 512.0);
             const dist = diffx * diffx + diffy * diffy;
 
-            const valid_inner: bool = dist <= @intToFloat(f32, (stride * stride));
-            const valid_outer: bool = dist > @intToFloat(f32, (stride * stride));
+            const valid_inner: bool = dist <= @intToFloat(f32, (stride * stride * 25));
+            const valid_outer: bool = dist > @intToFloat(f32, (stride * stride * 5));
 
             if (valid_inner and stride > 1)
                 terrainMeshResolutionSubRun(focal_axial, new_ibo, cur_x + x * stride, cur_y + y * stride, stride >> 2);

@@ -56,7 +56,7 @@ pub fn updateFocalPoint(focal_point: *Focus, position: pst.Position) void {
         for (indices, 0..) |index, i| {
             if (chk.indexIsMapValid(index)) {
                 const blob = focal_point.position.index().differenceAbs(index);
-                if (blob.x < 2 and blob.y < 2) {
+                if (blob.x < 2 and blob.y < 2 and chk.getChunk(index).?.mesh == null) {
                     std.debug.print("constructing mesh for {} {}\n", .{ index.x, index.y });
                     msh.constructBaseTerrainMesh(chk.getChunk(index).?, focal_point.position);
                 }

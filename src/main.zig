@@ -5,7 +5,7 @@
 //! avoid an ugly mess.
 //!
 //!     File/Folder layout is such that:
-//! - 'Simpltypes' refers to files with types that have only member functions,
+//! - 'Simpletypes' refers to files with types that have only member functions,
 //!    and do not utilize Imports.
 //! - 'CoalTypes' are files which contain structs and many utility functions,
 //!    both member and external. Each file should contain and implement info
@@ -20,6 +20,7 @@
 //!
 //!     Imported files/libraries use a three-digit name to easily identify and
 //! to not cause ambiguity by overlaping with any implemented... elements?
+//! Should confusion arise, perhaps an underscore suffix could be used?
 //!
 //!
 //!
@@ -53,7 +54,7 @@ pub fn main() void {
             3,
             "dawn",
             .{ .x = @intCast(i32, map.width), .y = @intCast(i32, map.height) },
-            .{ .x = 8, .y = 8 },
+            .{ .x = 128, .y = 128 },
         ) catch |err| {
             std.debug.print("editor error: {}\n", .{err});
             return;
@@ -122,20 +123,14 @@ pub fn main() void {
             .z = 0,
         });
 
-        camera.euclid.position = pst.Position.init(
-            camera.euclid.position.index(),
-            .{
-                .x = camera.euclid.position.axial().x,
-                .y = camera.euclid.position.axial().y,
-                .z = chk.getHeight(camera.euclid.position) + 40.75,
-            },
-        );
+        camera.euclid.position = pst.Position.init(camera.euclid.position.index(), .{
+            .x = camera.euclid.position.axial().x,
+            .y = camera.euclid.position.axial().y,
+            .z = chk.getHeight(camera.euclid.position) + 1.75,
+        });
 
         camera.euclid.quaternion =
             zmt.qmul(zmt.qmul(zmt.quatFromRollPitchYaw(0, 0, rot_z), camera.euclid.quaternion), zmt.quatFromRollPitchYaw(rot_x, rot_y, 0));
-
-        // TODO replace with proper clock timing
-        sys.sdl.SDL_Delay(15);
 
         cube.euclid.position = camera.euclid.position.addAxial(.{
             .x = 1,
@@ -144,10 +139,12 @@ pub fn main() void {
         });
 
         const dist = camera.euclid.position.squareDistance(window.focal_point.position);
-        if (dist > 256) {
+        if (dist > 128) {
             fcs.updateFocalPoint(&window.focal_point, camera.euclid.position);
         }
 
         cube.euclid.quaternion = zmt.qmul(cube.euclid.quaternion, zmt.quatFromRollPitchYaw(0.01, 0.02, 0.03));
+        // TODO replace with proper clock timing
+        sys.sdl.SDL_Delay(15);
     }
 }

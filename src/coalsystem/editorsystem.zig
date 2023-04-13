@@ -2,6 +2,8 @@ const std = @import("std");
 const alc = @import("../coalsystem/allocationsystem.zig");
 const fio = @import("../coalsystem/fileiosystem.zig");
 const pnt = @import("../simpletypes/points.zig");
+const chk = @import("../coaltypes/chunk.zig");
+const pst = @import("../coaltypes/position.zig");
 
 const EditError = error{
     GeneratedHeightRangeOoB,
@@ -92,5 +94,42 @@ pub fn generateNewChunkMap(height_map: []u8, height_mod: u16, map_name: []const 
 
             try fio.saveChunkHeights(chunk_ready_height_data, offset_mod, .{ .x = @intCast(i32, cx), .y = @intCast(i32, cy), .z = 0 }, map_name);
             std.debug.print("done!\n", .{});
+        };
+}
+
+pub fn smooveChunkMap(map_size: pnt.Point3, smooving_factor: u8, smoove_steps: u8, smoove_range: u8) !void {
+    for (0..map_size.y) |y|
+        for (0..map_size.x) |x| {
+            for (0..3) |oy|
+                for (0..3) |ox| {
+                    chk.loadChunk(.{ .x = x + ox, .y = y + oy, .z = 0 });
+                };
+
+            const chunk = chk.getChunk(.{ .x = x, .y = y, .z = 0 });
+            for (0..512) |hy|
+                for (0..512) |hx| {
+                    const heightdex = hx + hy * 512;
+                    const position = pst.Position.init(chunk.index, .{ .x = hx * 2, .y = hy * 2, .z = 0 });
+                    const height_center = chk.getHeight(position);
+                    var height: f32 = 0;
+
+                    for (0..(smoove_steps * 2)) |sy|
+                        for (0..(smoove_steps * 2)) |sx| {
+                            height += chk.getHeight(position.addAxial(.{
+                                .x = smoove_range * (sx - smoove_steps),
+                                .y = smoove_range * (sy - smoove_steps),
+                                .z = 0,
+                            }));
+                        };
+
+                    height += height_center * smooving_factor;
+                    chunk.?.heights[heightdex] = std.math.max(@as(f32, 0.0), height - @intToFloat(f32, chunk.height_mod) * 1024.0);
+                };
+
+            for (0..3) |oy|
+                for (0..3) |ox| {
+                    chk.saveChunk(.{ .x = x + ox, .y = y + oy, .z = 0 });
+                    chk.unloadChunk(.{ .x = x + ox, .y = y + oy, .z = 0 });
+                };
         };
 }

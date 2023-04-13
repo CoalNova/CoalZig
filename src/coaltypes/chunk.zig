@@ -67,6 +67,7 @@
 //!
 const std = @import("std");
 const zmt = @import("zmt");
+const sys = @import("../coalsystem/coalsystem.zig");
 const alc = @import("../coalsystem/allocationsystem.zig");
 const pst = @import("../coaltypes/position.zig");
 const fcs = @import("../coaltypes/focus.zig");
@@ -75,6 +76,7 @@ const ogd = @import("../coaltypes/ogd.zig");
 const msh = @import("../coaltypes/mesh.zig");
 const cms = @import("../coalsystem/coalmathsystem.zig");
 const fio = @import("../coalsystem/fileiosystem.zig");
+const rpt = @import("../coaltypes/report.zig");
 
 /// The container struct for world chunk
 /// will contain references to create/destroy/move setpieces and objects
@@ -134,8 +136,12 @@ pub fn getChunk(index: pst.pnt.Point3) ?*Chunk {
 
 pub fn loadChunk(chunk_index: pst.pnt.Point3) void {
     var chunk: *Chunk = getChunk(chunk_index) orelse {
-        std.debug.print("index ({d}, {d}) is an invalid index\n", .{ chunk_index.x, chunk_index.y });
-        return;
+        return rpt.logReportInit(
+            @enumToInt(rpt.ReportCatagory.level_warning) |
+                @enumToInt(rpt.ReportCatagory.chunk_system),
+            9,
+            .{ chunk_index.x, chunk_index.y, map_bounds.x, map_bounds.y },
+        );
     };
 
     //TODO use CAT
@@ -157,6 +163,8 @@ pub fn loadChunk(chunk_index: pst.pnt.Point3) void {
     errdefer chunk.setpieces.?.deinit();
     //TODO handle setpiece loading
 
+    //TODO find more elegant solution to cleaning mesh
+    chunk.mesh = null;
 }
 
 pub fn unloadChunk(chunk_index: pst.pnt.Point3) void {
@@ -170,6 +178,17 @@ pub fn unloadChunk(chunk_index: pst.pnt.Point3) void {
     chunk.height_mod = 0;
 
     chunk.setpieces.deinit();
+}
+
+/// Centralized method to save all chunk data
+pub fn saveChunk(chunk_index: pst.pnt.Point3) void {
+    const chunk: *Chunk = getChunk(chunk_index) orelse {
+        std.debug.print("index ({}, {}) is an invalid index", .{ chunk_index.x, chunk_index.y });
+        return;
+    };
+
+    // this might crash bad if metaheader is not loaded
+    fio.saveChunkHeights(chunk.heights, chunk.height_mod, chunk.index, sys.getMetaHeader().map_name);
 }
 
 // this is where the fun begins

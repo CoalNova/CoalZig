@@ -74,15 +74,42 @@ var engine_tick: usize = 0;
 // seperate from any game event, this tracks engine specific details
 var engine_state: u16 = 0;
 
-pub fn ignite() void {
+var meta_header: fio.MetaHeader = undefined;
+
+pub fn getMapName() []const u8 {
+    return meta_header.map_name;
+}
+
+/// Basic initialization to prepare for engine ignition
+pub fn prepareStar() !void {
     rpt.initLog() catch |err| {
         std.debug.print("initialization of report log failed {!}\n", .{err});
         setEngineStateFlag(EngineFlag.ef_quitflag);
         return;
     };
-
     wnd.initWindowGroup();
+    // read game meta header
+    meta_header = fio.loadMetaHeader(alc.gpa_allocator);
 
+    chk.initializeChunkMap(alc.gpa_allocator, meta_header.map_size) catch |err|
+        {
+        std.debug.print("map initialization failed {!}\n", .{err});
+        setEngineStateFlag(EngineFlag.ef_quitflag);
+        return;
+    };
+
+    shd.initializeShaders();
+}
+
+/// releases all prepared
+pub fn releaseStar() !void {
+    alc.gpa_allocator.free(meta_header.map_name);
+    shd.deinitializeShaders();
+    wnd.deinitWindowGroup();
+}
+
+/// Solar Ignition
+pub fn igniteStar() void {
     if (sdl.SDL_Init(sdl.SDL_INIT_EVERYTHING) != 0) {
         rpt.logReport(rpt.Report.init(
             @enumToInt(rpt.ReportCatagory.level_terminal) | @enumToInt(rpt.ReportCatagory.sdl_system),
@@ -93,18 +120,6 @@ pub fn ignite() void {
         setEngineStateFlag(EngineFlag.ef_quitflag);
         return;
     }
-
-    // read game meta header
-    var meta_header: fio.MetaHeader = fio.loadMetaHeader("");
-
-    chk.initializeChunkMap(alc.gpa_allocator, meta_header.map_size) catch |err|
-        {
-        std.debug.print("map initialization failed {!}\n", .{err});
-        setEngineStateFlag(EngineFlag.ef_quitflag);
-        return;
-    };
-
-    shd.initializeShaders();
 
     //construct windows
     win_blk: for (meta_header.window_init_types) |window_type| {
@@ -143,9 +158,7 @@ pub fn ignite() void {
 }
 
 /// Shuts down the engine, deinitializes systems, and frees memory
-pub fn douse() void {
-    shd.deinitializeShaders();
-    wnd.deinitWindowGroup();
+pub fn douseStar() void {
     sdl.SDL_Quit();
 }
 
@@ -174,6 +187,10 @@ pub fn unsetEngineStateFlag(engine_flag: EngineFlag) void {
 /// Returns if the supplied flag is set in the engine state flags
 pub fn getEngineStateFlag(engine_flag: EngineFlag) bool {
     return (@enumToInt(engine_flag) & engine_state) != 0;
+}
+
+pub fn getMetaHeader() fio.MetaHeader {
+    return meta_header;
 }
 
 /// Processes and engine frame

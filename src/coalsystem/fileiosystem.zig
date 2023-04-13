@@ -180,29 +180,33 @@ pub fn loadChunkHeights(heights: *[]u16, height_mod: *u8, index: pnt.Point3, map
     var file = try std.fs.cwd().openFile(filename, .{});
     defer file.close();
 
-    var reader = file.reader();
-
-    var file_index: pnt.Point2 = .{};
+    var bytes = try file.readToEndAlloc(alc.gpa_allocator, 1 << 20);
+    defer alc.gpa_allocator.free(bytes);
 
     //for now only supports 2d chunk layouts
-    file_index.x = try reader.readIntLittle(i32);
-    file_index.y = try reader.readIntLittle(i32);
+    var file_index: pnt.Point3 = .{
+        .x = @intCast(i32, bytes[0]) + (@intCast(i32, bytes[1]) << @as(i32, 8)) + (@intCast(i32, bytes[2]) << @as(i32, 16)) + (@intCast(i32, bytes[3]) << @as(i32, 24)),
+        .y = @intCast(i32, bytes[4]) + (@intCast(i32, bytes[5]) << @as(i32, 8)) + (@intCast(i32, bytes[6]) << @as(i32, 16)) + (@intCast(i32, bytes[7]) << @as(i32, 24)),
+        .z = 0,
+    };
 
-    if (file_index.x != index.x or file_index.y != index.y)
+    if (!file_index.equals(index))
         return ChunkFileError.ChunkIndexMismatch;
 
-    height_mod.* = try reader.readByte();
+    height_mod.* = bytes[8];
 
+    var r_index: usize = 9;
     //individual height processing
     var current_height: u16 = 0;
     for (0..512) |y|
         for (0..512) |x| {
             const h_index = x + y * 512;
-            var c = try reader.readByte();
-
+            var c = bytes[r_index];
+            r_index += 1;
             // check that currentheight isn't being written directly
             if (c == 255) {
-                current_height = try reader.readIntLittle(u16);
+                current_height = bytes[r_index] + (@intCast(u16, bytes[r_index + 1]) << 8);
+                r_index += 2;
             } else {
                 current_height = @intCast(u16, @intCast(i32, current_height) + @intCast(i16, c) - 64);
             }
@@ -220,29 +224,34 @@ pub fn loadChunkSetpieces(chunk: chk.Chunk) !void {
 }
 
 pub const MetaHeader = struct {
+    map_name: []u8 = undefined,
     map_size: pnt.Point3 = undefined,
     window_init_types: [8]wnd.WindowCategory = undefined,
 };
 
-pub fn loadMetaHeader(filename: []u8) MetaHeader {
-    var meta_header: MetaHeader = .{ .map_size = .{ .x = 8, .y = 8, .z = 4 }, .window_init_types = [_]wnd.WindowCategory{
-        wnd.WindowCategory.hardware,
-        wnd.WindowCategory.unused,
-        wnd.WindowCategory.unused,
-        wnd.WindowCategory.unused,
-        wnd.WindowCategory.unused,
-        wnd.WindowCategory.unused,
-        wnd.WindowCategory.unused,
-        wnd.WindowCategory.unused,
-    } };
+pub fn loadMetaHeader(allocator: std.mem.Allocator) MetaHeader {
+    var meta_header: MetaHeader = .{
+        .map_name = "test",
+        .map_size = .{ .x = 8, .y = 8, .z = 4 },
+        .window_init_types = [_]wnd.WindowCategory{
+            wnd.WindowCategory.hardware,
+            wnd.WindowCategory.unused,
+            wnd.WindowCategory.unused,
+            wnd.WindowCategory.unused,
+            wnd.WindowCategory.unused,
+            wnd.WindowCategory.unused,
+            wnd.WindowCategory.unused,
+            wnd.WindowCategory.unused,
+        },
+    };
 
     //open file
-    var file = std.fs.cwd().openFile(filename, .{}) catch |err|
+    var file = std.fs.cwd().openFile("./assets/metahead.cmh", .{}) catch |err|
         {
         //if failed to open, fall back to a default op
         const cat = rpt.ReportCatagory;
         std.debug.print("{}\n", .{err});
-        rpt.logReportInit(@enumToInt(cat.level_error) | @enumToInt(cat.file_io), 41, [4]i32{ 0, 0, 0, 0 });
+        rpt.logReportInit(@enumToInt(cat.level_error) | @enumToInt(cat.file_io), 23, [4]i32{ 0, 0, 0, 0 });
         return meta_header;
     };
     defer file.close();
@@ -257,18 +266,86 @@ pub fn loadMetaHeader(filename: []u8) MetaHeader {
     };
     defer alc.gpa_allocator.free(data);
 
-    var loaded_header: MetaHeader = meta_header;
+    meta_header.map_name = allocator.alloc(u8, data[0]);
 
-    //parse data
-    var lines = std.mem.split(u8, data, "|");
-    loaded_header.map_size = pnt.Point3.init(0, 0, 0);
-    for (lines.buffer) |x|
-        loaded_header.map_size.x = loaded_header.map_size.x * 10 + (x - 48);
-    for (lines.buffer) |y|
-        loaded_header.map_size.y = loaded_header.map_size.y * 10 + (y - 48);
-    for (lines.buffer) |z|
-        loaded_header.map_size.z = loaded_header.map_size.z * 10 + (z - 48);
+    for (&meta_header.map_name, 0..) |*c, i| c = data[i + 1];
 
-    meta_header = loaded_header;
+    var b_index = meta_header.map_name.len + 1;
+
+    meta_header.map_size.x = @intCast(i32, data[b_index]) +
+        (@intCast(i32, data[b_index + 1]) << 8) +
+        (@intCast(i32, data[b_index + 2]) << 16) +
+        (@intCast(i32, data[b_index + 3]) << 24);
+    b_index += 4;
+
+    meta_header.map_size.y = @intCast(i32, data[b_index]) +
+        (@intCast(i32, data[b_index + 1]) << 8) +
+        (@intCast(i32, data[b_index + 2]) << 16) +
+        (@intCast(i32, data[b_index + 3]) << 24);
+    b_index += 4;
+
+    meta_header.map_size.z = @intCast(i32, data[b_index]) +
+        (@intCast(i32, data[b_index + 1]) << 8) +
+        (@intCast(i32, data[b_index + 2]) << 16) +
+        (@intCast(i32, data[b_index + 3]) << 24);
+    b_index += 4;
+
+    for (0..8) |i| meta_header.window_init_types[i] = data[i + b_index];
+
     return meta_header;
+}
+
+pub fn saveMetaHeader(metaheader: MetaHeader) void {
+    const cat = @enumToInt(rpt.ReportCatagory.level_warning) |
+        @enumToInt(rpt.ReportCatagory.file_io);
+
+    var file = std.fs.cwd().createFile("./assets/metahead.cmh", std.fs.File.CreateFlags) catch |err| {
+        rpt.logReportInit(cat, 21, .{ 0, 0, 0, 0 });
+        std.debug.print("{!}\n}", .{err});
+        return;
+    };
+    defer file.close;
+    var writer = file.writer();
+
+    writer.writeByte(metaheader.map_name.len) catch |err| {
+        rpt.logReportInit(cat, 21, .{ 0, 0, 0, 0 });
+        std.debug.print("{!}\n}", .{err});
+        return;
+    };
+
+    for (metaheader.map_name) |c|
+        writer.writeByte(c) catch |err| {
+            rpt.logReportInit(cat, 21, .{ 0, 0, 0, 0 });
+            std.debug.print("{!}\n}", .{err});
+            return;
+        };
+
+    writer.writeIntLittle(i32, metaheader.map_size.x) catch |err| {
+        rpt.logReportInit(cat, 21, .{ 0, 0, 0, 0 });
+        std.debug.print("{!}\n}", .{err});
+        return;
+    };
+
+    writer.writeIntLittle(i32, metaheader.map_size.y) catch |err| {
+        rpt.logReportInit(cat, 21, .{ 0, 0, 0, 0 });
+        std.debug.print("{!}\n}", .{err});
+        return;
+    };
+
+    writer.writeIntLittle(i32, metaheader.map_size.z) catch |err| {
+        rpt.logReportInit(cat, 21, .{ 0, 0, 0, 0 });
+        std.debug.print("{!}\n}", .{err});
+        return;
+    };
+
+    for (0..8) |i| {
+        writer.writeByte(metaheader.window_init_types[i]) catch |err| {
+            rpt.logReportInit(cat, 21, .{ 0, 0, 0, 0 });
+            std.debug.print("{!}\n}", .{err});
+            return;
+        };
+    }
+
+    rpt.logReportInit(@enumToInt(rpt.ReportCatagory.level_information) |
+        @enumToInt(rpt.ReportCatagory.file_io), 20, .{ 0, 0, 0, 0 });
 }
