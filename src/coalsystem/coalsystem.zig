@@ -102,7 +102,7 @@ pub fn prepareStar() !void {
 }
 
 /// releases all prepared
-pub fn releaseStar() !void {
+pub fn releaseStar() void {
     alc.gpa_allocator.free(meta_header.map_name);
     shd.deinitializeShaders();
     wnd.deinitWindowGroup();

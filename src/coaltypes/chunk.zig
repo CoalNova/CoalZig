@@ -188,7 +188,9 @@ pub fn saveChunk(chunk_index: pst.pnt.Point3) void {
     };
 
     // this might crash bad if metaheader is not loaded
-    fio.saveChunkHeights(chunk.heights, chunk.height_mod, chunk.index, sys.getMetaHeader().map_name);
+    fio.saveChunkHeights(chunk.heights, chunk.height_mod, chunk.index, sys.getMetaHeader().map_name) catch |err| {
+        std.debug.print("{!}\n", .{err});
+    };
 }
 
 // this is where the fun begins

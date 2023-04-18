@@ -140,6 +140,9 @@ pub fn saveChunkHeights(heights: []u16, height_mod: u8, index: pnt.Point3, map_n
     const filename = try getChunkFilename(alc.gpa_allocator, index, map_name);
     defer alc.gpa_allocator.free(filename);
 
+    var bytes: std.ArrayList(u8) = std.ArrayList(u8).init(alc.gpa_allocator);
+    defer bytes.deinit();
+
     var file = try std.fs.cwd().createFile(filename, std.fs.File.CreateFlags{
         .read = false,
         .truncate = false,
@@ -152,9 +155,17 @@ pub fn saveChunkHeights(heights: []u16, height_mod: u8, index: pnt.Point3, map_n
     var writer = file.writer();
 
     //for now only supports 2d chunk layouts
-    try writer.writeIntLittle(i32, index.x);
-    try writer.writeIntLittle(i32, index.y);
-    try writer.writeByte(height_mod);
+    try bytes.append(@intCast(u8, index.x));
+    try bytes.append(@intCast(u8, index.x >> 8));
+    try bytes.append(@intCast(u8, index.x >> 16));
+    try bytes.append(@intCast(u8, index.x >> 24));
+
+    try bytes.append(@intCast(u8, index.y));
+    try bytes.append(@intCast(u8, index.y >> 8));
+    try bytes.append(@intCast(u8, index.y >> 16));
+    try bytes.append(@intCast(u8, index.y >> 24));
+
+    try bytes.append(height_mod);
 
     //individual height processing
     var current_height: u16 = 0;
@@ -163,14 +174,17 @@ pub fn saveChunkHeights(heights: []u16, height_mod: u8, index: pnt.Point3, map_n
             const h_index = x + y * 512;
             const diff = @intCast(i32, heights[h_index]) - @intCast(i32, current_height) + 64;
             if (diff < 128 and diff >= 0) {
-                try writer.writeByte(@intCast(u8, diff));
+                try bytes.append(@intCast(u8, diff));
                 current_height = @intCast(u16, @intCast(i32, current_height) + (diff - 64));
             } else {
-                try writer.writeByte(255);
+                try bytes.append(255);
                 current_height = heights[h_index];
-                try writer.writeIntLittle(u16, current_height);
+                try bytes.append(@truncate(u8, current_height));
+                try bytes.append(@truncate(u8, current_height >> 8));
             }
         };
+
+    for (bytes.items) |c| try writer.writeByte(c);
 }
 
 pub fn loadChunkHeights(heights: *[]u16, height_mod: *u8, index: pnt.Point3, map_name: []const u8) !void {
@@ -224,7 +238,7 @@ pub fn loadChunkSetpieces(chunk: chk.Chunk) !void {
 }
 
 pub const MetaHeader = struct {
-    map_name: []u8 = undefined,
+    map_name: []const u8 = undefined,
     map_size: pnt.Point3 = undefined,
     window_init_types: [8]wnd.WindowCategory = undefined,
 };
@@ -266,9 +280,13 @@ pub fn loadMetaHeader(allocator: std.mem.Allocator) MetaHeader {
     };
     defer alc.gpa_allocator.free(data);
 
-    meta_header.map_name = allocator.alloc(u8, data[0]);
+    var mapname = allocator.alloc(u8, data[0]) catch |err| {
+        std.debug.print("{!}\n", .{err});
+        return meta_header;
+    };
 
-    for (&meta_header.map_name, 0..) |*c, i| c = data[i + 1];
+    for (0..data[0]) |i| mapname[i] = data[i + 1];
+    meta_header.map_name = mapname;
 
     var b_index = meta_header.map_name.len + 1;
 
@@ -290,7 +308,7 @@ pub fn loadMetaHeader(allocator: std.mem.Allocator) MetaHeader {
         (@intCast(i32, data[b_index + 3]) << 24);
     b_index += 4;
 
-    for (0..8) |i| meta_header.window_init_types[i] = data[i + b_index];
+    for (0..8) |i| meta_header.window_init_types[i] = @intToEnum(wnd.WindowCategory, data[i + b_index]);
 
     return meta_header;
 }

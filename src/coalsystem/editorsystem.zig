@@ -16,13 +16,29 @@ const EditError = error{
 /// map_name is the name of the chunk map files to be generated under
 /// map_size is a touple containing the outer x,y bounds of the map
 ///     note: map bounds start at 0 and work outward towards max
-pub fn generateNewChunkMap(height_map: []u8, height_mod: u16, map_name: []const u8, height_map_size: pnt.Point2, map_size: pnt.Point2) !void {
-    const bytes_per_chunk: pnt.Point2 = .{ .x = @divTrunc(height_map_size.x, map_size.x), .y = @divTrunc(height_map_size.y, map_size.y) };
-    const height_per_byte: pnt.Point2 = .{ .x = @divTrunc(512, bytes_per_chunk.x), .y = @divTrunc(512, bytes_per_chunk.y) };
+pub fn generateNewChunkMap(
+    height_map: []u8,
+    height_mod: u16,
+    map_name: []const u8,
+    height_map_size: pnt.Point2,
+    map_size: pnt.Point2,
+    start_index: pnt.Point3,
+    end_index: pnt.Point3,
+) void {
+    const bytes_per_chunk: pnt.Point2 = .{
+        .x = @divTrunc(height_map_size.x, map_size.x),
+        .y = @divTrunc(height_map_size.y, map_size.y),
+    };
+    const height_per_byte: pnt.Point2 = .{
+        .x = @divTrunc(512, bytes_per_chunk.x),
+        .y = @divTrunc(512, bytes_per_chunk.y),
+    };
 
-    var heights: []f32 = try alc.gpa_allocator.alloc(f32, 512 * 512);
+    var heights: []f32 = alc.gpa_allocator.alloc(f32, 512 * 512) catch |err|
+        return std.debug.print("{!}\n", .{err});
     defer alc.gpa_allocator.free(heights);
-    var chunk_ready_height_data: []u16 = try alc.gpa_allocator.alloc(u16, 512 * 512);
+    var chunk_ready_height_data: []u16 = alc.gpa_allocator.alloc(u16, 512 * 512) catch |err|
+        return std.debug.print("{!}\n", .{err});
     defer alc.gpa_allocator.free(chunk_ready_height_data);
 
     const bpcx = @intCast(usize, bytes_per_chunk.x);
@@ -33,9 +49,9 @@ pub fn generateNewChunkMap(height_map: []u8, height_mod: u16, map_name: []const 
     const hpby = @intCast(usize, height_per_byte.y);
 
     //iterate over chunks
-    for (0..@intCast(usize, map_size.y)) |cy|
+    for (@intCast(usize, start_index.y)..@intCast(usize, end_index.y)) |cy|
         for (0..@intCast(usize, map_size.x)) |cx| {
-            std.debug.print("Generating fresh heights for {} {} for world \"{s}\" ", .{ cx, cy, map_name });
+            std.debug.print("Generating fresh heights for [{}, {}], in world \"{s}\"\n", .{ cx, cy, map_name });
 
             //iterate over the pixels in the chunk
             //if not perfectly diviseable then this is gonna suck
@@ -81,8 +97,10 @@ pub fn generateNewChunkMap(height_map: []u8, height_mod: u16, map_name: []const 
 
             //check that possible ranges isn't exceeded
             if (tollest - smollest > 5500.0) {
-                std.debug.print("Generated chunk height range exceeded! {},{}", .{ tollest, smollest });
-                return EditError.GeneratedHeightRangeOoB;
+                return std.debug.print(
+                    "Generated chunk height range exceeded! [{}, {}] {},{}",
+                    .{ cx, cy, tollest, smollest },
+                );
             }
 
             //capture height data
@@ -90,46 +108,72 @@ pub fn generateNewChunkMap(height_map: []u8, height_mod: u16, map_name: []const 
             for (heights, 0..) |h, i|
                 chunk_ready_height_data[i] = @floatToInt(u16, (h - (@intToFloat(f32, offset_mod) * 1024)) * 10);
 
-            std.debug.print(" complete!\n\tsaving ", .{});
-
-            try fio.saveChunkHeights(chunk_ready_height_data, offset_mod, .{ .x = @intCast(i32, cx), .y = @intCast(i32, cy), .z = 0 }, map_name);
-            std.debug.print("done!\n", .{});
+            fio.saveChunkHeights(
+                chunk_ready_height_data,
+                offset_mod,
+                .{ .x = @intCast(i32, cx), .y = @intCast(i32, cy), .z = 0 },
+                map_name,
+            ) catch |err| {
+                std.debug.print("{!}\n", .{err});
+            };
+            std.debug.print("[{}, {}] done!\n", .{ cx, cy });
         };
 }
 
-pub fn smooveChunkMap(map_size: pnt.Point3, smooving_factor: u8, smoove_steps: u8, smoove_range: u8) !void {
-    for (0..map_size.y) |y|
-        for (0..map_size.x) |x| {
+pub fn smooveChunkMap(
+    map_size: pnt.Point2,
+    smooving_factor: u8,
+    smoove_steps: u8,
+    smoove_range: u8,
+    start_index: pnt.Point3,
+    end_index: pnt.Point3,
+) void {
+    for (@intCast(usize, start_index.y)..@intCast(usize, end_index.y)) |y|
+        for (0..@intCast(usize, map_size.x)) |x| {
+            std.debug.print("Smooving heights for chunk [{}, {}]\n", .{ x, y });
+
             for (0..3) |oy|
                 for (0..3) |ox| {
-                    chk.loadChunk(.{ .x = x + ox, .y = y + oy, .z = 0 });
+                    chk.loadChunk(.{ .x = @intCast(i32, x + ox), .y = @intCast(i32, y + oy), .z = 0 });
                 };
 
-            const chunk = chk.getChunk(.{ .x = x, .y = y, .z = 0 });
+            const chunk = chk.getChunk(.{ .x = @intCast(i32, x), .y = @intCast(i32, y), .z = 0 }).?;
             for (0..512) |hy|
                 for (0..512) |hx| {
                     const heightdex = hx + hy * 512;
-                    const position = pst.Position.init(chunk.index, .{ .x = hx * 2, .y = hy * 2, .z = 0 });
+                    const position = pst.Position.init(chunk.index, .{
+                        .x = @intToFloat(f32, hx * 2),
+                        .y = @intToFloat(f32, hy * 2),
+                        .z = 0,
+                    });
                     const height_center = chk.getHeight(position);
                     var height: f32 = 0;
 
-                    for (0..(smoove_steps * 2)) |sy|
-                        for (0..(smoove_steps * 2)) |sx| {
+                    for (0..(smoove_steps * 2 + 1)) |sy|
+                        for (0..(smoove_steps * 2 + 1)) |sx| {
                             height += chk.getHeight(position.addAxial(.{
-                                .x = smoove_range * (sx - smoove_steps),
-                                .y = smoove_range * (sy - smoove_steps),
+                                .x = @intToFloat(f32, smoove_range * (@intCast(i32, sx) - smoove_steps)),
+                                .y = @intToFloat(f32, smoove_range * (@intCast(i32, sy) - smoove_steps)),
                                 .z = 0,
                             }));
                         };
 
-                    height += height_center * smooving_factor;
-                    chunk.?.heights[heightdex] = std.math.max(@as(f32, 0.0), height - @intToFloat(f32, chunk.height_mod) * 1024.0);
+                    height += height_center * @intToFloat(f32, smooving_factor);
+                    height = height / comptime @intToFloat(f32, @intCast(u32, smoove_steps * 2 + 1) *
+                        @intCast(u32, smoove_steps * 2 + 1) + smooving_factor);
+                    height -= @intToFloat(f32, chunk.height_mod) * 1024.0;
+                    chunk.heights[heightdex] = if (height < 0.0) 0.0 else @floatToInt(u16, height * 10);
                 };
-
             for (0..3) |oy|
                 for (0..3) |ox| {
-                    chk.saveChunk(.{ .x = x + ox, .y = y + oy, .z = 0 });
-                    chk.unloadChunk(.{ .x = x + ox, .y = y + oy, .z = 0 });
+                    const chunk_index = pnt.Point3{
+                        .x = @intCast(i32, x + ox),
+                        .y = @intCast(i32, y + oy),
+                        .z = 0,
+                    };
+                    chk.saveChunk(chunk_index);
+                    chk.unloadChunk(chunk_index);
                 };
+            std.debug.print("Completed smooving for chunk [{}, {}]\n", .{ x, y });
         };
 }

@@ -39,32 +39,64 @@ const gls = @import("coalsystem/glsystem.zig");
 const eds = @import("coalsystem/editorsystem.zig");
 const fio = @import("coalsystem/fileiosystem.zig");
 const fcs = @import("coaltypes/focus.zig");
+const alc = @import("coalsystem/allocationsystem.zig");
 
 pub fn main() void {
-    if (false) {
+    if (true) {
         var map = fio.loadBMP("./assets/world/map.bmp") catch |err| {
             std.debug.print("file error: {}\n", .{err});
             return;
         };
 
         // var chunk_bounds = chk.getMapBounds();
+        const t_count = std.Thread.getCpuCount() catch |err|
+            return std.debug.print("{!}\n", .{err});
+        var threads = alc.gpa_allocator.alloc(std.Thread, t_count) catch |err|
+            return std.debug.print("{!}\n", .{err});
 
-        eds.generateNewChunkMap(
-            map.px,
-            3,
-            "dawn",
-            .{ .x = @intCast(i32, map.width), .y = @intCast(i32, map.height) },
-            .{ .x = 128, .y = 128 },
-        ) catch |err| {
-            std.debug.print("editor error: {}\n", .{err});
-            return;
-        };
+        std.debug.print("\nthread count: {}\n", .{t_count});
+
+        const t_divsr = @divTrunc(128, t_count);
+
+        for (0..t_count) |t| {
+            const t_start = pnt.Point3{ .x = 0, .y = @intCast(i32, t_divsr * t), .z = 0 };
+            const t_end = pnt.Point3{ .x = 0, .y = if (t_count - 1 > t) @intCast(i32, t_divsr * (t + 1)) else 128, .z = 0 };
+
+            std.debug.print("thread {}: [{}, {}][{}, {}]\n", .{ t, t_start.x, t_start.y, t_end.x, t_end.y });
+
+            threads[t] = std.Thread.spawn(.{}, eds.generateNewChunkMap, .{
+                map.px,
+                3,
+                "dawn",
+                .{ .x = @intCast(i32, map.width), .y = @intCast(i32, map.height) },
+                .{ .x = 128, .y = 128 },
+                t_start,
+                t_end,
+            }) catch |err| return std.debug.print("{!}\n", .{err});
+        }
+
+        for (0..t_count) |t|
+            threads[t].join();
+
+        for (0..t_count) |t| {
+            const t_start = pnt.Point3{ .x = 0, .y = @intCast(i32, t_divsr * t), .z = 0 };
+            const t_end = pnt.Point3{ .x = 0, .y = if (t_count - 1 > t) @intCast(i32, t_divsr * (t + 1)) else 128, .z = 0 };
+
+            threads[t] = std.Thread.spawn(
+                .{},
+                eds.smooveChunkMap,
+                .{ .{ .x = 128, .y = 128 }, 1, 2, 4, t_start, t_end },
+            ) catch |err| return std.debug.print("{!}\n", .{err});
+        }
+
+        for (0..t_count) |t|
+            threads[t].join();
     }
 
-    // Start system,
-    sys.ignite();
-    // Defer closing of system
-    defer (sys.douse());
+    sys.prepareStar() catch |err| return std.debug.print("{!}\n", .{err});
+    defer sys.releaseStar();
+    sys.igniteStar();
+    defer sys.douseStar();
 
     const window = wnd.getWindow(wnd.WindowCategory.hardware).?;
     var camera = &window.camera;
