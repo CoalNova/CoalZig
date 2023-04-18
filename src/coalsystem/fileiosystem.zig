@@ -152,8 +152,6 @@ pub fn saveChunkHeights(heights: []u16, height_mod: u8, index: pnt.Point3, map_n
     });
     defer file.close();
 
-    var writer = file.writer();
-
     //for now only supports 2d chunk layouts
     try bytes.append(@intCast(u8, index.x));
     try bytes.append(@intCast(u8, index.x >> 8));
@@ -184,7 +182,7 @@ pub fn saveChunkHeights(heights: []u16, height_mod: u8, index: pnt.Point3, map_n
             }
         };
 
-    for (bytes.items) |c| try writer.writeByte(c);
+    try file.writeAll(bytes.items);
 }
 
 pub fn loadChunkHeights(heights: *[]u16, height_mod: *u8, index: pnt.Point3, map_name: []const u8) !void {
@@ -245,8 +243,8 @@ pub const MetaHeader = struct {
 
 pub fn loadMetaHeader(allocator: std.mem.Allocator) MetaHeader {
     var meta_header: MetaHeader = .{
-        .map_name = "test",
-        .map_size = .{ .x = 8, .y = 8, .z = 4 },
+        .map_name = "dawn",
+        .map_size = .{ .x = 128, .y = 128, .z = 4 },
         .window_init_types = [_]wnd.WindowCategory{
             wnd.WindowCategory.hardware,
             wnd.WindowCategory.unused,

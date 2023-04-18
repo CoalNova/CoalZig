@@ -42,6 +42,8 @@ const fcs = @import("coaltypes/focus.zig");
 const alc = @import("coalsystem/allocationsystem.zig");
 
 pub fn main() void {
+    sys.prepareStar() catch |err| return std.debug.print("{!}\n", .{err});
+
     if (true) {
         var map = fio.loadBMP("./assets/world/map.bmp") catch |err| {
             std.debug.print("file error: {}\n", .{err});
@@ -66,10 +68,10 @@ pub fn main() void {
 
             threads[t] = std.Thread.spawn(.{}, eds.generateNewChunkMap, .{
                 map.px,
-                3,
-                "dawn",
+                20,
+                sys.getMetaHeader().map_name,
                 .{ .x = @intCast(i32, map.width), .y = @intCast(i32, map.height) },
-                .{ .x = 128, .y = 128 },
+                .{ .x = sys.getMetaHeader().map_size.x, .y = sys.getMetaHeader().map_size.y },
                 t_start,
                 t_end,
             }) catch |err| return std.debug.print("{!}\n", .{err});
@@ -85,7 +87,7 @@ pub fn main() void {
             threads[t] = std.Thread.spawn(
                 .{},
                 eds.smooveChunkMap,
-                .{ .{ .x = 128, .y = 128 }, 1, 2, 4, t_start, t_end },
+                .{ .{ .x = sys.getMetaHeader().map_size.x, .y = sys.getMetaHeader().map_size.y }, 1, 1, 4, t_start, t_end },
             ) catch |err| return std.debug.print("{!}\n", .{err});
         }
 
@@ -93,7 +95,6 @@ pub fn main() void {
             threads[t].join();
     }
 
-    sys.prepareStar() catch |err| return std.debug.print("{!}\n", .{err});
     defer sys.releaseStar();
     sys.igniteStar();
     defer sys.douseStar();

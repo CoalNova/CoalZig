@@ -131,7 +131,7 @@ pub fn getMessageString(message_index: u32) []const u8 {
         1 => return "Not yet implemented",
         2 => return "CoalStar Initialized Successfully",
         3 => return "CoalStar Initialization Failed",
-        8 => return "Chunk request index out of bounds",
+        9 => return "Chunk request index out of bounds",
         10 => return "SDL Initialized Succesfully",
         11 => return "SDL Initialization Failed",
         12 => return "SDL Audio Initialized Successfully",

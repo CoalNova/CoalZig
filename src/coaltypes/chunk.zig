@@ -169,7 +169,7 @@ pub fn loadChunk(chunk_index: pst.pnt.Point3) void {
 
 pub fn unloadChunk(chunk_index: pst.pnt.Point3) void {
     var chunk: *Chunk = getChunk(chunk_index) orelse {
-        std.debug.print("index ({}, {}) is an invalid index", .{ chunk_index.x, chunk_index.y });
+        std.debug.print("index ({}, {}) is an invalid index\n", .{ chunk_index.x, chunk_index.y });
         return;
     };
 
@@ -183,7 +183,8 @@ pub fn unloadChunk(chunk_index: pst.pnt.Point3) void {
 /// Centralized method to save all chunk data
 pub fn saveChunk(chunk_index: pst.pnt.Point3) void {
     const chunk: *Chunk = getChunk(chunk_index) orelse {
-        std.debug.print("index ({}, {}) is an invalid index", .{ chunk_index.x, chunk_index.y });
+        const cat = @enumToInt(rpt.ReportCatagory.level_warning) | @enumToInt(rpt.ReportCatagory.chunk_system);
+        rpt.logReportInit(cat, 9, .{ 0, 0, chunk_index.x, chunk_index.y });
         return;
     };
 

@@ -49,9 +49,9 @@ pub fn generateNewChunkMap(
     const hpby = @intCast(usize, height_per_byte.y);
 
     //iterate over chunks
-    for (@intCast(usize, start_index.y)..@intCast(usize, end_index.y)) |cy|
+    for (@intCast(usize, start_index.y)..@intCast(usize, end_index.y)) |cy| {
+        std.debug.print("Generating fresh heights for [0, {}], in world \"{s}\"\n", .{ cy, map_name });
         for (0..@intCast(usize, map_size.x)) |cx| {
-            std.debug.print("Generating fresh heights for [{}, {}], in world \"{s}\"\n", .{ cx, cy, map_name });
 
             //iterate over the pixels in the chunk
             //if not perfectly diviseable then this is gonna suck
@@ -116,8 +116,8 @@ pub fn generateNewChunkMap(
             ) catch |err| {
                 std.debug.print("{!}\n", .{err});
             };
-            std.debug.print("[{}, {}] done!\n", .{ cx, cy });
-        };
+        }
+    }
 }
 
 pub fn smooveChunkMap(
@@ -128,10 +128,9 @@ pub fn smooveChunkMap(
     start_index: pnt.Point3,
     end_index: pnt.Point3,
 ) void {
-    for (@intCast(usize, start_index.y)..@intCast(usize, end_index.y)) |y|
+    for (@intCast(usize, start_index.y)..@intCast(usize, end_index.y)) |y| {
+        std.debug.print("Smooving heights for chunk [0, {}]\n", .{y});
         for (0..@intCast(usize, map_size.x)) |x| {
-            std.debug.print("Smooving heights for chunk [{}, {}]\n", .{ x, y });
-
             for (0..3) |oy|
                 for (0..3) |ox| {
                     chk.loadChunk(.{ .x = @intCast(i32, x + ox), .y = @intCast(i32, y + oy), .z = 0 });
@@ -174,6 +173,6 @@ pub fn smooveChunkMap(
                     chk.saveChunk(chunk_index);
                     chk.unloadChunk(chunk_index);
                 };
-            std.debug.print("Completed smooving for chunk [{}, {}]\n", .{ x, y });
-        };
+        }
+    }
 }
