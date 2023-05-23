@@ -1,4 +1,5 @@
 const std = @import("std");
+const zmt = @import("zmt");
 
 pub const Mat4 = [4]@Vector(4, f32);
 pub const Quat = @Vector(4, f32); // x,y,z,w
@@ -102,7 +103,8 @@ pub fn radians(degrees: f32) f32 {
 }
 
 pub inline fn vec3Dot(fst: Vec3, scd: Vec3) f32 {
-    return fst[0] * scd[0] + fst[1] * scd[1] + fst[2] * scd[2];
+    const thd = fst * scd;
+    return thd[0] + thd[1] + thd[2];
 }
 
 /// Adds 1 to the end for homogeneous coordinate transformations
@@ -112,4 +114,39 @@ pub inline fn vec3ToH(vec: Vec3) Vec4 {
 
 pub inline fn vec4to3(vec: Vec4) Vec3 {
     return Vec3{ vec[0], vec[1], vec[2] };
+}
+
+pub inline fn badCross(vec_a: Vec3, vec_b: Vec3) Vec3 {
+    return Vec3{
+        vec_a[1] * vec_b[2] - vec_a[2] * vec_b[1],
+        vec_a[2] * vec_b[0] - vec_a[0] * vec_a[2],
+        vec_a[1] * vec_b[0] - vec_a[0] * vec_b[1],
+    };
+}
+
+pub inline fn cross(vec_a: Vec3, vec_b: Vec3) Vec3 {
+    return Vec3{
+        vec_a[1] * vec_b[2] - vec_a[2] * vec_b[1],
+        vec_a[2] * vec_b[0] - vec_a[0] * vec_a[2],
+        vec_a[0] * vec_b[1] - vec_a[1] * vec_b[0],
+    };
+}
+
+pub inline fn rayPlane(
+    plane_origin: Vec3,
+    plane_normal: Vec3,
+    ray_origin: Vec3,
+    ray_direction: Vec3,
+    ray_length: *f32,
+) bool {
+
+    // assuming vectors are all normalized
+    const denom = zmt.abs(vec3Dot(plane_normal, ray_direction));
+    if (denom > 1e-6) {
+        const comb = plane_origin - ray_origin;
+        ray_length.* = vec3Dot(comb, plane_normal) / denom;
+        return (ray_length.* >= 0.0);
+    }
+
+    return false;
 }

@@ -144,7 +144,7 @@ pub fn igniteStar() void {
         if (window_type == wnd.WindowCategory.hardware or wnd.WindowCategory.software == window_type) {
             window.?.focal_point.position = pst.Position.init(.{ .x = -1, .y = -1, .z = 0 }, .{});
             window.?.focal_point.active_chunks = [_]pnt.Point3{.{ .x = -1, .y = -1, .z = 0 }} ** 25;
-            fcs.updateFocalPoint(&window.?.focal_point, pst.Position.init(.{}, .{}));
+            fcs.updateFocalPoint(&window.?.focal_point, pst.Position.init(.{ .x = 34, .y = 31, .z = 0 }, .{}));
             window.?.camera.euclid.quaternion = @Vector(4, f32){ 0, 0, 0, 1 };
         }
     }

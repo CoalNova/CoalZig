@@ -226,11 +226,11 @@ fn terrainMeshResolutionSubRun(focal_axial: pst.vct.Vector3, new_ibo: *std.Array
                 terrainMeshResolutionSubRun(focal_axial, new_ibo, cur_x + x * stride, cur_y + y * stride, stride >> 2);
 
             if (valid_outer or stride == 1)
-                procFace(cur_x + x * stride, cur_y + y * stride, stride, new_ibo);
+                procTerrainQuad(cur_x + x * stride, cur_y + y * stride, stride, new_ibo);
         };
 }
 
-fn procFace(x: usize, y: usize, stride: usize, new_ibo: *std.ArrayList(u32)) void {
+fn procTerrainQuad(x: usize, y: usize, stride: usize, new_ibo: *std.ArrayList(u32)) void {
     const width = 1025;
     const index = x + y * width;
     new_ibo.append(@truncate(u32, index)) catch return;

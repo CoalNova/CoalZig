@@ -154,6 +154,7 @@ pub fn getMessageString(message_index: u32) []const u8 {
         157 => return "Shader program link error",
         201 => return "Attempted to render a chunk whose mesh null",
         301 => return "Attempted to remove an executor which was not subscribed",
+        501 => return "Regionmap.bmp could not be loaded for zone processing",
         else => return "Report text not yet implemented",
     }
     unreachable;

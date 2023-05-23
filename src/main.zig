@@ -44,7 +44,7 @@ const alc = @import("coalsystem/allocationsystem.zig");
 pub fn main() void {
     sys.prepareStar() catch |err| return std.debug.print("{!}\n", .{err});
 
-    if (true) {
+    if (false) {
         var map = fio.loadBMP("./assets/world/map.bmp") catch |err| {
             std.debug.print("file error: {}\n", .{err});
             return;
@@ -101,7 +101,7 @@ pub fn main() void {
 
     const window = wnd.getWindow(wnd.WindowCategory.hardware).?;
     var camera = &window.camera;
-    camera.euclid.position = pst.Position.init(.{ .x = 0, .y = 0, .z = 0 }, .{ .x = 0, .y = 0, .z = 1.75 });
+    camera.euclid.position = window.focal_point.position;
     var cube = stp.generateSetPiece(.{}, chk.getChunk(window.focal_point.position.index()).?).?;
     //sys.setEngineStateFlag(sys.EngineFlag.ef_quitflag);
 

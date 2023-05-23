@@ -85,6 +85,7 @@ pub const Chunk = struct {
     index: pst.pnt.Point3 = .{ .x = 0, .y = 0, .z = 0 },
     heights: []u16 = undefined,
     height_mod: u8 = 0,
+    zones: ?[]u8 = null,
     setpieces: std.ArrayList(*stp.Setpiece) = undefined,
     mesh: ?*msh.Mesh = null,
 };
@@ -134,13 +135,13 @@ pub fn getChunk(index: pst.pnt.Point3) ?*Chunk {
     return &chunk_map[@intCast(usize, index.x + index.y * map_bounds.x)];
 }
 
-pub fn loadChunk(chunk_index: pst.pnt.Point3) void {
-    var chunk: *Chunk = getChunk(chunk_index) orelse {
+pub fn loadChunk(index: pst.pnt.Point3) void {
+    var chunk: *Chunk = getChunk(index) orelse {
         return rpt.logReportInit(
             @enumToInt(rpt.ReportCatagory.level_warning) |
                 @enumToInt(rpt.ReportCatagory.chunk_system),
             9,
-            .{ chunk_index.x, chunk_index.y, map_bounds.x, map_bounds.y },
+            .{ index.x, index.y, map_bounds.x, map_bounds.y },
         );
     };
 
@@ -152,12 +153,25 @@ pub fn loadChunk(chunk_index: pst.pnt.Point3) void {
     };
 
     //TODO chunk map name needs a centralized location
-    fio.loadChunkHeights(&chunk.heights, &chunk.height_mod, chunk_index, "dawn") catch |err| {
+    fio.loadChunkHeights(&chunk.heights, &chunk.height_mod, index, "dawn") catch |err| {
         std.debug.print("{!}\n", .{err});
         return;
     };
-
     errdefer alc.gpa_allocator.free(chunk.heights);
+
+    //initialize (and eventually load) zones
+    chunk.zones = alc.gpa_allocator.alloc(u8, 1024 * 1024) catch |err| {
+        const cat = @enumToInt(rpt.ReportCatagory.chunk_system) |
+            @enumToInt(rpt.ReportCatagory.memory_allocation) |
+            @enumToInt(rpt.ReportCatagory.level_error);
+        rpt.logReportInit(cat, 101, [_]i32{ index.x, index.y, 0, 0 });
+        std.debug.print("{!}\n", .{err});
+        return;
+    };
+    errdefer {
+        alc.gpa_allocator.free(chunk.zones);
+        chunk.zones = null;
+    }
 
     chunk.setpieces = std.ArrayList(*stp.Setpiece).init(alc.gpa_allocator);
     errdefer chunk.setpieces.?.deinit();
@@ -218,6 +232,10 @@ pub fn getHeight(position: pst.Position) f32 {
 
             const index = @intCast(usize, ((pos_absol.x + 512) >> 1) + ((pos_absol.y + 512) >> 1) * 512);
 
+            if (chunk.heights.len == 0) {
+                return 0.0;
+            }
+
             return @intToFloat(f32, chunk.heights[index]) * 0.1 +
                 @intToFloat(f32, (@as(u32, chunk.height_mod) * 1024));
         } else if ((position.y & (1 << 24)) == 0) {
@@ -239,31 +257,50 @@ pub fn getHeight(position: pst.Position) f32 {
     }
 
     //else, break out the ray/plane intercept
-    const p_1 = getHeight(position.round());
-    const p_3 = getHeight(position.round().addAxial(.{ .x = 1, .y = 1, .z = 0 }));
-    const x_g = position.xMinorGreater();
-    const v_2 = pst.vct.Vector2{
-        .x = if (x_g) 1 else 0,
-        .y = if (x_g) 0 else 1,
-    };
-    const p_2 = getHeight(position.round().addAxial(.{ .x = v_2.x, .y = v_2.y, .z = 0 }));
+    const rounded = position.round();
+    const x_great = position.xMinorGreater();
+    const p_0 = getHeight(rounded);
+    const p_1 = if (x_great)
+        getHeight(rounded.addAxial(.{ .x = 1, .y = 0, .z = 0 }))
+    else
+        getHeight(rounded.addAxial(.{ .x = 0, .y = 1, .z = 0 }));
+    const p_2 = getHeight(rounded.addAxial(.{ .x = 1, .y = 1, .z = 0 }));
+
+    const v_0 = cms.Vec3{ 0, 0, 0 };
+    const v_2 = cms.Vec3{ 1, 1, p_2 - p_0 };
+
+    const v_1 = if (x_great) cms.Vec3{ 1, 0, p_1 - p_0 } else cms.Vec3{ 0, 1, p_1 - p_0 };
 
     //normalish the values
-    var v_a = cms.Vec4{ 0, 0, 0, 0 };
-    var v_b = cms.Vec4{ v_2.x, v_2.y, p_2 - p_1, 0 };
-    var v_c = cms.Vec4{ 1, 1, p_3 - p_1, 0 };
+    const normal = if (x_great)
+        cms.cross(-v_1, v_2 - v_1)
+    else
+        cms.cross(v_1, v_2);
 
-    var normal: cms.Vec4 = zmt.cross3(v_b - v_a, v_b - v_c);
+    const direction = cms.Vec3{ 0.0, 0.0, -1.0 };
+    const origin = cms.Vec3{
+        pos_axial.x - @intToFloat(f32, pos_absol.x),
+        pos_axial.y - @intToFloat(f32, pos_absol.y),
+        1.0,
+    };
 
-    const direction = cms.Vec4{ 0.0, 0.0, -1.0, 0 };
-    const origin = cms.Vec4{ 0.0, 0.0, 1.0, 0 };
+    var height: f32 = 0.0;
 
-    const n_d = normal * direction;
-    const denom = n_d[0] + n_d[1] + n_d[2];
-    if (denom == 0.0) //in cases of negative zero
-        return p_1; // better to float(burn out) than to drop to 0(fade away)
-
-    const o_n = (v_a - origin) * normal;
-    const height = (o_n[0] + o_n[1] + o_n[2]) / denom;
-    return p_1 + height;
+    const worked = (cms.rayPlane(v_0, normal, origin, direction, &height));
+    std.debug.print(
+        "offset: {d:.4}, [{} {}]\n",
+        .{ height, x_great, worked },
+    );
+    std.debug.print(
+        " v_0[{d:.4}, {d:.4}, {d:.4}]\n v_1[{d:.4}, {d:.4}, {d:.4}]\n v_2[{d:.4}, {d:.4}, {d:.4}]\n",
+        .{ v_0[0], v_0[1], v_0[2], v_1[0], v_1[1], v_1[2], v_2[0], v_2[1], v_2[2] },
+    );
+    std.debug.print(
+        " p_0[{d:.4}] p_1[{d:.4}] p_2[{d:.4}]\n",
+        .{ p_0, p_1, p_2 },
+    );
+    return if (worked)
+        p_0 + height
+    else
+        p_0;
 }

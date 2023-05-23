@@ -4,6 +4,8 @@ const fio = @import("../coalsystem/fileiosystem.zig");
 const pnt = @import("../simpletypes/points.zig");
 const chk = @import("../coaltypes/chunk.zig");
 const pst = @import("../coaltypes/position.zig");
+const rpt = @import("../coaltypes/report.zig");
+const zmt = @import("zmt");
 
 const EditError = error{
     GeneratedHeightRangeOoB,
@@ -128,9 +130,13 @@ pub fn smooveChunkMap(
     start_index: pnt.Point3,
     end_index: pnt.Point3,
 ) void {
+
+    //iterate over all chunks
     for (@intCast(usize, start_index.y)..@intCast(usize, end_index.y)) |y| {
         std.debug.print("Smooving heights for chunk [0, {}]\n", .{y});
         for (0..@intCast(usize, map_size.x)) |x| {
+
+            //preload chunks
             for (0..3) |oy|
                 for (0..3) |ox| {
                     chk.loadChunk(.{ .x = @intCast(i32, x + ox), .y = @intCast(i32, y + oy), .z = 0 });
@@ -163,6 +169,8 @@ pub fn smooveChunkMap(
                     height -= @intToFloat(f32, chunk.height_mod) * 1024.0;
                     chunk.heights[heightdex] = if (height < 0.0) 0.0 else @floatToInt(u16, height * 10);
                 };
+
+            //save and unload chunks
             for (0..3) |oy|
                 for (0..3) |ox| {
                     const chunk_index = pnt.Point3{
@@ -175,4 +183,122 @@ pub fn smooveChunkMap(
                 };
         }
     }
+}
+
+pub fn generateFreshLODTerrain(map_bounds: pnt.Point2, stride: u32) void {
+    const strivisor = @divTrunc(1024, stride);
+
+    //lod vbo layout
+    // [xxxx xxxx xxxx xxxx yyyy yyyy yyyy yyyy]
+    // [zzzz zzzz zzzz zzzz nxnx nyny zozo zozo]
+    // pos.x/y = x/y * stride,
+    // each vert is increment, stride 256 = max 16k chunks
+    // height rounded to nearest unit 0-65,535
+    // -8 to +7 for normal, calced after heights got
+    // zone rules still applies
+
+    var vbo = alc.gpa_allocator.alloc(u32, map_bounds.x * strivisor * map_bounds.y * strivisor * 2);
+    defer alc.gpa_allocator.free(vbo);
+
+    for (0..map_bounds.y) |cy| {
+        //load line
+        for (0..map_bounds.x) |cx|
+            chk.loadChunk(.{ .x = cx, .y = cy, .z = 0 });
+
+        for (0..map_bounds.x) |cx| {
+            for (0..strivisor) |vy| {
+                for (0..strivisor) |vx| {
+                    const vbo_index = cx * strivisor + vx + (cy * strivisor + vy) * map_bounds.x * strivisor * 2;
+                    vbo[vbo_index] = ((cx * strivisor + vx) << 16) + (cy * strivisor + vy);
+                    const pos = pst.Position.init(
+                        .{ .x = cx, .y = cy, .z = 0 },
+                        .{ .x = vx * stride, .y = vy * stride, .z = 0 },
+                    );
+                    vbo[vbo_index + 1] = chk.getHeight(pos);
+                }
+            }
+        }
+
+        for (0..map_bounds.x) |cx|
+            chk.unloadChunk(.{ .x = cx, .y = cy, .z = 0 });
+    }
+}
+
+pub fn genZone(index: pnt.Point3, sea_level: u32) void {
+    if (!chk.indexIsMapValid(index)) {
+        const cat = @enumToInt(rpt.ReportCatagory.chunk_system) | @enumToInt(rpt.ReportCatagory.level_error);
+        rpt.logReportInit(cat, 9, [_]i32{ index.x, index.y, 0, 0 });
+        return;
+    }
+
+    var chunk = chk.getChunk(index).?;
+
+    //load if not already loaded
+    const preloaded = chunk.heights.len > 0;
+    if (!preloaded)
+        chk.loadChunk(index);
+
+    //discard error as lack of regionmap file is expectable behavior
+    const regionmap: ?fio.BMP = fio.loadBMP("../assets/world/regionmap.bmp") catch null;
+
+    var regiondex: usize = 0;
+    var pxxperchk: usize = 0;
+    var pxyperchk: usize = 0;
+    //var regionwid: usize = 0;
+    if (regionmap == null) {
+        const cat = @enumToInt(rpt.ReportCatagory.file_io) | @enumToInt(rpt.ReportCatagory.level_warning);
+        rpt.logReportInit(cat, 501, {});
+    } else {
+        pxxperchk = @divTrunc(regionmap.?.width, chk.getMapBounds().x);
+        pxyperchk = @divTrunc(regionmap.?.height, chk.getMapBounds().y);
+        regiondex = index.x * pxxperchk + index.y * pxxperchk * regionmap.?.width;
+    }
+
+    //go through and apply zones based on default rules
+    for (0..1024) |y| {
+        for (0..1024) |x| {
+
+            //get region type if available
+            //MEBE use noisemap and radial blur as a swap?
+            const region: u8 = if (regionmap == null)
+                0
+            else
+                regionmap.?.px[regiondex + (x / pxxperchk >> 10) + (y / pxyperchk >> 10) * regionmap.?.width];
+
+            //get height
+            const altitude = chk.getHeight(pst.Position.init(index, .{ .x = x, .y = y, .z = 0 }));
+
+            //get slope(as best as is possible), is abs dot product multiplied by 255
+            const vec_a = zmt.f32x4(
+                if (x == 0) 1 else -1,
+                0,
+                chk.getHeight(pst.Position.init(index, .{
+                    .x = x + if (x == 0) 1 else -1,
+                    .y = y,
+                    .z = 0,
+                })) - altitude,
+                1,
+            ); //x
+            const vec_b = zmt.f32x4(
+                0,
+                if (y == 0) 1 else -1,
+                chk.getHeight(pst.Position.init(index, .{
+                    .x = x,
+                    .y = y + if (y == 0) 1 else -1,
+                    .z = 0,
+                })),
+                1,
+            ); //y
+            const slope = @floatToInt(u8, std.math.fabs(zmt.dot3(vec_a, vec_b)[0]) * 255);
+
+            //preliminary zone placement should add latitude to altitude, to simulate colder northern conditions
+            //perhaps a better option is a gradient map, so that areas may have their environment dynamically assigned
+            const specific = if (altitude < sea_level) 4 else 2 - (slope >> 6);
+
+            chunk.zones[x + y * 1024] = (((region / 32) & @as(u8, 7)) << 3) + specific;
+        }
+    }
+    //save chunk and retain loaded/unloaded state
+    if (!preloaded)
+        chk.unloadChunk(index);
 }
