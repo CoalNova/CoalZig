@@ -141,10 +141,9 @@ pub inline fn rayPlane(
 ) bool {
 
     // assuming vectors are all normalized
-    const denom = zmt.abs(vec3Dot(plane_normal, ray_direction));
-    if (denom > 1e-6) {
-        const comb = plane_origin - ray_origin;
-        ray_length.* = vec3Dot(comb, plane_normal) / denom;
+    const denom = vec3Dot(plane_normal, ray_direction);
+    if (std.math.fabs(denom) > 1e-6) {
+        ray_length.* = vec3Dot(plane_origin - ray_origin, plane_normal) / denom;
         return (ray_length.* >= 0.0);
     }
 

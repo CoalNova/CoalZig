@@ -35,46 +35,58 @@ test "positional rounding" {
     std.debug.print("expected {d} {d}, got {d} {d} OK\n", .{ 0, 1, pos_3.axial().x, pos_3.index().x });
 }
 
-test "ray meet plane" {
+test "ray meet plane 1" {
     const pl_or_0 = cms.Vec3{ 0, 0, 0 };
-    const pl_or_1 = cms.Vec3{ 0, 0, 1.0 };
-    const pl_or_2 = cms.Vec3{ 0, 0, -1.0 };
-    const pl_or_3 = cms.Vec3{ 0, 0, 1000.0 };
-
     const pl_nm_0 = cms.Vec3{ 0, 0, 1.0 };
-    const pl_nm_1 = cms.Vec3{ 0, 1.0, 0 };
-    const pl_nm_2 = cms.Vec3{ 0, 0.5, 0.5 };
-    const pl_nm_3 = cms.Vec3{ 0.5, 0.5, 0 };
-
     const ry_or_0 = cms.Vec3{ 0, 0, 1.0 };
-    const ry_or_1 = cms.Vec3{ 0, 0.5, 1.0 };
-    const ry_or_2 = cms.Vec3{ 0.5, 0, 1.0 };
-    const ry_or_3 = cms.Vec3{ 0.5, 0.5, 1.0 };
-
     const ry_dr_0 = cms.Vec3{ 0, 0, -1.0 };
-    const ry_dr_1 = cms.Vec3{ 0, 0, 1.0 };
-    const ry_dr_2 = cms.Vec3{ 0, 1.0, 0 };
-    const ry_dr_3 = cms.Vec3{ 1.0, 0, 0 };
 
     var length: f32 = 0;
 
     std.testing.expect(cms.rayPlane(pl_or_0, pl_nm_0, ry_or_0, ry_dr_0, &length)) catch |err| {
-        std.debug.print("expected collision, got none\n");
+        std.debug.print("expected collision, got none\n", .{});
         return err;
     };
     std.testing.expect(length == 1.0) catch |err| std.debug.print("Expected 1.000 got {d:.4} [{!}]\n", .{ length, err });
+}
+test "ray meet plane 2" {
+    const pl_or_1 = cms.Vec3{ 0, 0, 1.0 };
+    const pl_nm_1 = cms.Vec3{ 0, 0, 1.0 };
+    const ry_or_1 = cms.Vec3{ 0, 0.0, -1.0 };
+    const ry_dr_1 = cms.Vec3{ 0, 0, 1.0 };
+
+    var length: f32 = 0;
+
     std.testing.expect(cms.rayPlane(pl_or_1, pl_nm_1, ry_or_1, ry_dr_1, &length)) catch |err| {
-        std.debug.print("expected collision, got none\n");
+        std.debug.print("expected collision, got none\n", .{});
         return err;
     };
     std.testing.expect(length == 1.0) catch |err| std.debug.print("Expected 1.000 got {d:.4} [{!}]\n", .{ length, err });
+}
+test "ray meet plane 3" {
+    const pl_or_2 = cms.Vec3{ 0, 0, -1.0 };
+    const pl_nm_2 = cms.Vec3{ 0, 0.5, 0.5 };
+    const ry_dr_2 = cms.Vec3{ 0, 1.0, 0 };
+    const ry_or_2 = cms.Vec3{ 0.5, 0, 1.0 };
+
+    var length: f32 = 0;
+
     std.testing.expect(cms.rayPlane(pl_or_2, pl_nm_2, ry_or_2, ry_dr_2, &length)) catch |err| {
-        std.debug.print("expected collision, got none\n");
+        std.debug.print("expected collision, got none\n", .{});
         return err;
     };
     std.testing.expect(length == 1.0) catch |err| std.debug.print("Expected 1.000 got {d:.4} [{!}]\n", .{ length, err });
+}
+test "ray meet plane 4" {
+    const pl_or_3 = cms.Vec3{ 0, 0, 1000.0 };
+    const pl_nm_3 = cms.Vec3{ 0.5, 0.5, 0 };
+    const ry_dr_3 = cms.Vec3{ 1.0, 0, 0 };
+    const ry_or_3 = cms.Vec3{ 0.5, 0.5, 1.0 };
+
+    var length: f32 = 0;
+
     std.testing.expect(cms.rayPlane(pl_or_3, pl_nm_3, ry_or_3, ry_dr_3, &length)) catch |err| {
-        std.debug.print("expected collision, got none\n");
+        std.debug.print("expected collision, got none\n", .{});
         return err;
     };
     std.testing.expect(length == 1.0) catch |err| std.debug.print("Expected 1.000 got {d:.4} [{!}]\n", .{ length, err });

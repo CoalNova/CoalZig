@@ -287,18 +287,17 @@ pub fn getHeight(position: pst.Position) f32 {
     var height: f32 = 0.0;
 
     const worked = (cms.rayPlane(v_0, normal, origin, direction, &height));
-    std.debug.print(
-        "offset: {d:.4}, [{} {}]\n",
-        .{ height, x_great, worked },
-    );
-    std.debug.print(
-        " v_0[{d:.4}, {d:.4}, {d:.4}]\n v_1[{d:.4}, {d:.4}, {d:.4}]\n v_2[{d:.4}, {d:.4}, {d:.4}]\n",
-        .{ v_0[0], v_0[1], v_0[2], v_1[0], v_1[1], v_1[2], v_2[0], v_2[1], v_2[2] },
-    );
-    std.debug.print(
-        " p_0[{d:.4}] p_1[{d:.4}] p_2[{d:.4}]\n",
-        .{ p_0, p_1, p_2 },
-    );
+
+    std.debug.print("height: [{d:.3}, {d:.3}]({d:.3}, {d:.3}) {d:.6}\n", .{
+        origin[0],
+        origin[1],
+
+        pos_axial.x - @intToFloat(f32, pos_absol.x),
+        pos_axial.y - @intToFloat(f32, pos_absol.y),
+
+        height,
+    });
+
     return if (worked)
         p_0 + height
     else

@@ -383,7 +383,13 @@ pub fn saveLODWorld(vertices: []u32, world: []const u8) void {
         return;
     };
 
-    var file = std.fs.cwd().openFile(filename.items, .{}) catch |err| {
+    var file = std.fs.cwd().createFile(filename.items, std.fs.File.CreateFlags{
+        .read = false,
+        .truncate = false,
+        .exclusive = false,
+        .lock = .None,
+        .lock_nonblocking = false,
+    }) catch |err| {
         std.debug.print("LODWorld saving failed {s} {!}\n", .{ filename.items, err });
         const cat = @enumToInt(rpt.ReportCatagory.level_error);
         rpt.logReportInit(cat, 407, [_]i32{ 0, 0, 0, 0 });

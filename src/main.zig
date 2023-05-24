@@ -45,7 +45,7 @@ pub fn main() void {
     sys.prepareStar() catch |err| return std.debug.print("{!}\n", .{err});
 
     //DEBUG generate new world
-    if (true) {
+    if (false) {
         var map = fio.loadBMP("./assets/world/map.bmp") catch |err| {
             std.debug.print("file error: {}\n", .{err});
             return;
@@ -150,8 +150,8 @@ pub fn main() void {
             threads[t].join();
 
         alc.gpa_allocator.free(noise_map.px);
+        eds.generateFreshLODTerrain(chk.getMapBounds(), 256);
     }
-    eds.generateFreshLODTerrain(chk.getMapBounds(), 256);
 
     defer sys.releaseStar();
     sys.igniteStar();

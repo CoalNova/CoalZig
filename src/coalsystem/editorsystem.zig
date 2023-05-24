@@ -215,6 +215,7 @@ pub fn generateFreshLODTerrain(map_bounds: pnt.Point3, stride: u32) void {
 
     for (0..@intCast(u32, map_bounds.y)) |cy| {
         //load line
+        std.debug.print("LODWorld proc'ing chunk row {d}... ", .{cy});
         for (0..@intCast(u32, map_bounds.x)) |cx|
             chk.loadChunk(.{ .x = @intCast(i32, cx), .y = @intCast(i32, cy), .z = 0 });
 
@@ -234,6 +235,7 @@ pub fn generateFreshLODTerrain(map_bounds: pnt.Point3, stride: u32) void {
 
         for (0..@intCast(u32, map_bounds.x)) |cx|
             chk.unloadChunk(.{ .x = @intCast(i32, cx), .y = @intCast(i32, cy), .z = 0 });
+        std.debug.print(" Done!\n", .{});
     }
     fio.saveLODWorld(vbo, "dawn");
 }
