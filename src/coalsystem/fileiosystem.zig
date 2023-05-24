@@ -365,3 +365,53 @@ pub fn saveMetaHeader(metaheader: MetaHeader) void {
     rpt.logReportInit(@enumToInt(rpt.ReportCatagory.level_information) |
         @enumToInt(rpt.ReportCatagory.file_io), 20, .{ 0, 0, 0, 0 });
 }
+
+pub fn saveLODWorld(vertices: []u32, world: []const u8) void {
+    var filename = std.ArrayList(u8).init(alc.gpa_allocator);
+    defer filename.deinit();
+
+    filename.appendSlice("./assets/world/") catch |err| {
+        std.debug.print("saveLOD: {!}\n", .{err});
+        return;
+    };
+    filename.appendSlice(world) catch |err| {
+        std.debug.print("saveLOD: {!}\n", .{err});
+        return;
+    };
+    filename.appendSlice("_lod.cslf") catch |err| {
+        std.debug.print("saveLOD: {!}\n", .{err});
+        return;
+    };
+
+    var file = std.fs.cwd().openFile(filename.items, .{}) catch |err| {
+        std.debug.print("LODWorld saving failed {s} {!}\n", .{ filename.items, err });
+        const cat = @enumToInt(rpt.ReportCatagory.level_error);
+        rpt.logReportInit(cat, 407, [_]i32{ 0, 0, 0, 0 });
+        return;
+    };
+    defer file.close();
+
+    var writeable = alc.gpa_allocator.alloc(u8, vertices.len * 4) catch |err| {
+        std.debug.print("LODWorld saving failed {!}\n", .{err});
+        const cat = @enumToInt(rpt.ReportCatagory.level_error) |
+            @enumToInt(rpt.ReportCatagory.memory_allocation);
+        rpt.logReportInit(cat, 101, [_]i32{ 0, 0, 0, 0 });
+        return;
+    };
+    defer alc.gpa_allocator.free(writeable);
+
+    for (vertices, 0..) |v, i| {
+        writeable[i * 4] = @intCast(u8, v & 255);
+        writeable[i * 4 + 1] = @intCast(u8, (v >> 8) & 255);
+        writeable[i * 4 + 2] = @intCast(u8, (v >> 16) & 255);
+        writeable[i * 4 + 3] = @intCast(u8, (v >> 24) & 255);
+    }
+
+    _ = file.write(writeable) catch |err| {
+        std.debug.print("LODWorld saving failed {!}\n", .{err});
+        const cat = @enumToInt(rpt.ReportCatagory.level_error) |
+            @enumToInt(rpt.ReportCatagory.file_io);
+        rpt.logReportInit(cat, 407, [_]i32{ 0, 0, 0, 0 });
+        return;
+    };
+}

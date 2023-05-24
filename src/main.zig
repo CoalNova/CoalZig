@@ -44,7 +44,8 @@ const alc = @import("coalsystem/allocationsystem.zig");
 pub fn main() void {
     sys.prepareStar() catch |err| return std.debug.print("{!}\n", .{err});
 
-    if (false) {
+    //DEBUG generate new world
+    if (true) {
         var map = fio.loadBMP("./assets/world/map.bmp") catch |err| {
             std.debug.print("file error: {}\n", .{err});
             return;
@@ -80,6 +81,34 @@ pub fn main() void {
         for (0..t_count) |t|
             threads[t].join();
 
+        var noise_map: fio.BMP = fio.loadBMP("./assets/tex/noise_b.bmp") catch |err| {
+            std.debug.print("An oopsy doodle {!}\n", .{err});
+            return;
+        };
+
+        for (0..t_count) |t| {
+            const t_start = t_divsr * t;
+            const t_end = if (t_count - 1 > t) t_divsr * (t + 1) else 128;
+
+            threads[t] = std.Thread.spawn(
+                .{},
+                eds.applyNoiseMapGroup,
+                .{
+                    noise_map.px,
+                    .{ .x = @intCast(i32, noise_map.width), .y = @intCast(i32, noise_map.height), .z = 1 },
+                    1,
+                    @intCast(usize, chk.getMapBounds().x),
+                    t_start,
+                    t_end,
+                },
+            ) catch |err| return std.debug.print("{!}\n", .{err});
+        }
+
+        for (0..t_count) |t|
+            threads[t].join();
+
+        alc.gpa_allocator.free(noise_map.px);
+
         for (0..t_count) |t| {
             const t_start = pnt.Point3{ .x = 0, .y = @intCast(i32, t_divsr * t), .z = 0 };
             const t_end = pnt.Point3{ .x = 0, .y = if (t_count - 1 > t) @intCast(i32, t_divsr * (t + 1)) else 128, .z = 0 };
@@ -93,7 +122,36 @@ pub fn main() void {
 
         for (0..t_count) |t|
             threads[t].join();
+
+        noise_map = fio.loadBMP("./assets/tex/noise_d.bmp") catch |err| {
+            std.debug.print("An oopsy doodle {!}\n", .{err});
+            return;
+        };
+
+        for (0..t_count) |t| {
+            const t_start = t_divsr * t;
+            const t_end = if (t_count - 1 > t) t_divsr * (t + 1) else 128;
+
+            threads[t] = std.Thread.spawn(
+                .{},
+                eds.applyNoiseMapGroup,
+                .{
+                    noise_map.px,
+                    .{ .x = @intCast(i32, noise_map.width), .y = @intCast(i32, noise_map.height), .z = 1 },
+                    1,
+                    @intCast(usize, chk.getMapBounds().x),
+                    t_start,
+                    t_end,
+                },
+            ) catch |err| return std.debug.print("{!}\n", .{err});
+        }
+
+        for (0..t_count) |t|
+            threads[t].join();
+
+        alc.gpa_allocator.free(noise_map.px);
     }
+    eds.generateFreshLODTerrain(chk.getMapBounds(), 256);
 
     defer sys.releaseStar();
     sys.igniteStar();

@@ -139,10 +139,13 @@ pub fn smooveChunkMap(
             //preload chunks
             for (0..3) |oy|
                 for (0..3) |ox| {
-                    chk.loadChunk(.{ .x = @intCast(i32, x + ox), .y = @intCast(i32, y + oy), .z = 0 });
+                    const load_dex = pnt.Point3{ .x = @intCast(i32, x + ox), .y = @intCast(i32, y + oy), .z = 0 };
+                    if (chk.indexIsMapValid(load_dex))
+                        chk.loadChunk(load_dex);
                 };
 
             const chunk = chk.getChunk(.{ .x = @intCast(i32, x), .y = @intCast(i32, y), .z = 0 }).?;
+            var new_heights: [512 * 512]u16 = [_]u16{0} ** (512 * 512);
             for (0..512) |hy|
                 for (0..512) |hx| {
                     const heightdex = hx + hy * 512;
@@ -154,38 +157,38 @@ pub fn smooveChunkMap(
                     const height_center = chk.getHeight(position);
                     var height: f32 = 0;
 
-                    for (0..(smoove_steps * 2 + 1)) |sy|
-                        for (0..(smoove_steps * 2 + 1)) |sx| {
-                            height += chk.getHeight(position.addAxial(.{
-                                .x = @intToFloat(f32, smoove_range * (@intCast(i32, sx) - smoove_steps)),
-                                .y = @intToFloat(f32, smoove_range * (@intCast(i32, sy) - smoove_steps)),
-                                .z = 0,
-                            }));
-                        };
+                    //TODO figure out what to do with these
+                    _ = smoove_range;
+                    _ = smoove_steps;
 
+                    //TODO ALSO use normal-based sampling?
+
+                    height += chk.getHeight(position.addAxial(.{ .x = -2.0, .y = 4.0, .z = 0.0 }));
+                    height += chk.getHeight(position.addAxial(.{ .x = 4.0, .y = 2.0, .z = 0.0 }));
+                    height += chk.getHeight(position.addAxial(.{ .x = 2.0, .y = -4.0, .z = 0.0 }));
+                    height += chk.getHeight(position.addAxial(.{ .x = -4.0, .y = -2.0, .z = 0.0 }));
                     height += height_center * @intToFloat(f32, smooving_factor);
-                    height = height / comptime @intToFloat(f32, @intCast(u32, smoove_steps * 2 + 1) *
-                        @intCast(u32, smoove_steps * 2 + 1) + smooving_factor);
-                    height -= @intToFloat(f32, chunk.height_mod) * 1024.0;
-                    chunk.heights[heightdex] = if (height < 0.0) 0.0 else @floatToInt(u16, height * 10);
-                };
 
+                    height /= 4 + @intToFloat(f32, smooving_factor);
+
+                    height -= @intToFloat(f32, chunk.height_mod) * 1024.0;
+                    new_heights[heightdex] = if (height < 0.0) 0.0 else @floatToInt(u16, height * 10);
+                };
+            for (chunk.heights, 0..) |*h, i| h.* = new_heights[i];
+            chk.saveChunk(chunk.index);
             //save and unload chunks
             for (0..3) |oy|
                 for (0..3) |ox| {
-                    const chunk_index = pnt.Point3{
-                        .x = @intCast(i32, x + ox),
-                        .y = @intCast(i32, y + oy),
-                        .z = 0,
-                    };
-                    chk.saveChunk(chunk_index);
-                    chk.unloadChunk(chunk_index);
+                    const load_dex = pnt.Point3{ .x = @intCast(i32, x + ox), .y = @intCast(i32, y + oy), .z = 0 };
+                    if (chk.indexIsMapValid(load_dex)) {
+                        chk.unloadChunk(load_dex);
+                    }
                 };
         }
     }
 }
 
-pub fn generateFreshLODTerrain(map_bounds: pnt.Point2, stride: u32) void {
+pub fn generateFreshLODTerrain(map_bounds: pnt.Point3, stride: u32) void {
     const strivisor = @divTrunc(1024, stride);
 
     //lod vbo layout
@@ -197,36 +200,65 @@ pub fn generateFreshLODTerrain(map_bounds: pnt.Point2, stride: u32) void {
     // -8 to +7 for normal, calced after heights got
     // zone rules still applies
 
-    var vbo = alc.gpa_allocator.alloc(u32, map_bounds.x * strivisor * map_bounds.y * strivisor * 2);
+    var vbo = alc.gpa_allocator.alloc(
+        u32,
+        @intCast(u32, map_bounds.x) * strivisor * @intCast(u32, map_bounds.y) * strivisor * 2,
+    ) catch |err|
+        {
+        std.debug.print("LODworld: {!}\n", .{err});
+        const cat = @enumToInt(rpt.ReportCatagory.level_error) |
+            @enumToInt(rpt.ReportCatagory.memory_allocation);
+        rpt.logReportInit(cat, 101, [_]i32{ 0, 0, 0, 0 });
+        return;
+    };
     defer alc.gpa_allocator.free(vbo);
 
-    for (0..map_bounds.y) |cy| {
+    for (0..@intCast(u32, map_bounds.y)) |cy| {
         //load line
-        for (0..map_bounds.x) |cx|
-            chk.loadChunk(.{ .x = cx, .y = cy, .z = 0 });
+        for (0..@intCast(u32, map_bounds.x)) |cx|
+            chk.loadChunk(.{ .x = @intCast(i32, cx), .y = @intCast(i32, cy), .z = 0 });
 
-        for (0..map_bounds.x) |cx| {
+        for (0..@intCast(u32, map_bounds.x)) |cx| {
             for (0..strivisor) |vy| {
                 for (0..strivisor) |vx| {
-                    const vbo_index = cx * strivisor + vx + (cy * strivisor + vy) * map_bounds.x * strivisor * 2;
-                    vbo[vbo_index] = ((cx * strivisor + vx) << 16) + (cy * strivisor + vy);
+                    const vbo_index = cx * strivisor + vx + (cy * strivisor + vy) * @intCast(u32, map_bounds.x) * strivisor * 2;
+                    vbo[vbo_index] = (@intCast(u32, (cx * strivisor + vx) & 65535) << 16) + @intCast(u32, cy * strivisor + vy);
                     const pos = pst.Position.init(
-                        .{ .x = cx, .y = cy, .z = 0 },
-                        .{ .x = vx * stride, .y = vy * stride, .z = 0 },
+                        .{ .x = @intCast(i32, cx), .y = @intCast(i32, cy), .z = 0 },
+                        .{ .x = @intToFloat(f32, vx * stride), .y = @intToFloat(f32, vy * stride), .z = 0 },
                     );
-                    vbo[vbo_index + 1] = chk.getHeight(pos);
+                    vbo[vbo_index + 1] = @floatToInt(u32, chk.getHeight(pos)) << @as(u32, 16);
                 }
             }
         }
 
-        for (0..map_bounds.x) |cx|
-            chk.unloadChunk(.{ .x = cx, .y = cy, .z = 0 });
+        for (0..@intCast(u32, map_bounds.x)) |cx|
+            chk.unloadChunk(.{ .x = @intCast(i32, cx), .y = @intCast(i32, cy), .z = 0 });
+    }
+    fio.saveLODWorld(vbo, "dawn");
+}
+
+pub fn genZoneGroup(
+    row_width: usize,
+    start_row: usize,
+    end_row: usize,
+    sea_level: u32,
+) void {
+    for (start_row..end_row) |y| {
+        for (0..row_width) |x| {
+            genZone(.{
+                .x = @intCast(i32, x),
+                .y = @intCast(u32, y),
+                .z = 0,
+            }, sea_level);
+        }
     }
 }
 
 pub fn genZone(index: pnt.Point3, sea_level: u32) void {
     if (!chk.indexIsMapValid(index)) {
-        const cat = @enumToInt(rpt.ReportCatagory.chunk_system) | @enumToInt(rpt.ReportCatagory.level_error);
+        const cat = @enumToInt(rpt.ReportCatagory.chunk_system) |
+            @enumToInt(rpt.ReportCatagory.level_error);
         rpt.logReportInit(cat, 9, [_]i32{ index.x, index.y, 0, 0 });
         return;
     }
@@ -301,4 +333,48 @@ pub fn genZone(index: pnt.Point3, sea_level: u32) void {
     //save chunk and retain loaded/unloaded state
     if (!preloaded)
         chk.unloadChunk(index);
+}
+
+pub fn applyNoiseMapGroup(noise_map: []u8, noise_map_size: pnt.Point3, noise_scale: u32, row_width: usize, start_row: usize, end_row: usize) void {
+    for (start_row..end_row) |y| {
+        for (0..row_width) |x| {
+            applyNoiseMap(noise_map, noise_map_size, noise_scale, .{ .x = @intCast(i32, x), .y = @intCast(i32, y), .z = 0 });
+        }
+        std.debug.print("Applied noisemap for row {}\n", .{y});
+    }
+}
+
+pub fn applyNoiseMap(
+    noise_map: []u8,
+    noise_map_size: pnt.Point3,
+    noise_scale: u32,
+    index: pnt.Point3,
+) void {
+    if (!chk.indexIsMapValid(index)) {
+        const cat = @enumToInt(rpt.ReportCatagory.chunk_system) |
+            @enumToInt(rpt.ReportCatagory.level_error);
+        rpt.logReportInit(cat, 9, [_]i32{ index.x, index.y, 0, 0 });
+        return;
+    }
+
+    var chunk = chk.getChunk(index).?;
+
+    const loaded = (chunk.heights.len > 0);
+    if (!loaded) chk.loadChunk(index);
+
+    const x_scale: usize = @intCast(u31, noise_map_size.x) / 512;
+    const y_scale: usize = @intCast(u31, noise_map_size.y) / 512;
+
+    for (0..512) |y| {
+        for (0..512) |x| {
+            const height_index = x + y * 512;
+            const noise_index =
+                (x_scale * x + y * y_scale * @intCast(usize, noise_map_size.x)) * @intCast(usize, noise_map_size.z);
+            chunk.heights[height_index] += @intCast(u16, noise_map[noise_index] * noise_scale);
+        }
+    }
+
+    chk.saveChunk(index);
+
+    if (!loaded) chk.unloadChunk(index);
 }

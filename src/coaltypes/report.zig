@@ -152,8 +152,12 @@ pub fn getMessageString(message_index: u32) []const u8 {
         153 => return "Geometry Shader compilation error",
         155 => return "Fragment Shader compilation error",
         157 => return "Shader program link error",
-        201 => return "Attempted to render a chunk whose mesh null",
+        201 => return "Attempted to render a chunk whose mesh is null",
         301 => return "Attempted to remove an executor which was not subscribed",
+        401 => return "Unable to open chunk file for saving",
+        403 => return "Unable to open setpiece file for saving",
+        405 => return "Unable to open actor file for saving",
+        407 => return "Unable to open LODWorld file for saving",
         501 => return "Regionmap.bmp could not be loaded for zone processing",
         else => return "Report text not yet implemented",
     }
