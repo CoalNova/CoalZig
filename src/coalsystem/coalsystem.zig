@@ -33,7 +33,7 @@ const pst = @import("../coaltypes/position.zig");
 const shd = @import("../coaltypes/shader.zig");
 
 /// Engine Flags are operational guidelines for any special engine operations
-/// TODO validate if engine quit should be engine sustain,
+/// MEBE validate if engine quit should be engine sustain,
 ///     and if engine state 0x0000 should be engine quit
 pub const EngineFlag = enum(u16) {
     /// Engine Quit Flag (change tbd)
@@ -81,6 +81,7 @@ pub fn getMapName() []const u8 {
 }
 
 /// Basic initialization to prepare for engine ignition
+/// Initializes memory allocation, engine-use collections
 pub fn prepareStar() !void {
     rpt.initLog() catch |err| {
         std.debug.print("initialization of report log failed {!}\n", .{err});
@@ -101,14 +102,14 @@ pub fn prepareStar() !void {
     shd.initializeShaders();
 }
 
-/// releases all prepared
+/// Releases all resources that had been initialized with prepare
 pub fn releaseStar() void {
     alc.gpa_allocator.free(meta_header.map_name);
     shd.deinitializeShaders();
     wnd.deinitWindowGroup();
 }
 
-/// Solar Ignition
+/// Ignition, initializes engine systems, SDL, and any related systems
 pub fn igniteStar() void {
     if (sdl.SDL_Init(sdl.SDL_INIT_EVERYTHING) != 0) {
         rpt.logReport(rpt.Report.init(
@@ -157,7 +158,7 @@ pub fn igniteStar() void {
     ));
 }
 
-/// Shuts down the engine, deinitializes systems, and frees memory
+/// Shuts down the engine, deinitializes systems
 pub fn douseStar() void {
     sdl.SDL_Quit();
 }

@@ -421,3 +421,38 @@ pub fn saveLODWorld(vertices: []u32, world: []const u8) void {
         return;
     };
 }
+
+pub fn loadLODWorld(vertices: []u32, world: []const u8, allocator: std.mem.Allocator) void {
+    var filename = std.ArrayList(u8).init(allocator);
+    defer filename.deinit();
+
+    filename.appendSlice("./assets/world/") catch |err| {
+        std.debug.print("saveLOD: {!}\n", .{err});
+        return;
+    };
+    filename.appendSlice(world) catch |err| {
+        std.debug.print("saveLOD: {!}\n", .{err});
+        return;
+    };
+    filename.appendSlice("_lod.cslf") catch |err| {
+        std.debug.print("saveLOD: {!}\n", .{err});
+        return;
+    };
+    var file = std.fs.cwd().openFile(filename, .{
+        .read = false,
+        .truncate = false,
+        .exclusive = false,
+        .lock = .None,
+        .lock_nonblocking = false,
+    }) catch |err| {
+        std.debug.print("LODWorld saving failed {s} {!}\n", .{ filename.items, err });
+        const cat = @enumToInt(rpt.ReportCatagory.level_error);
+        rpt.logReportInit(cat, 407, [_]i32{ 0, 0, 0, 0 });
+        return;
+    };
+
+    //max size is 16MB, capping world at 1024 * 1024 chunks given 4 verts per chunk axis
+    vertices = file.readToEndAlloc(allocator, 16777216) catch |err| {
+        std.debug.print("get LODworld: {!}\n", .{err});
+    };
+}
